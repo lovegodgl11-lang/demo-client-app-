@@ -1,0 +1,1832 @@
+<!DOCTYPE html>
+<html lang="en" class=""><head><script>window.livecodes = window.livecodes || {};</script><title>Demo client app </title><meta name="title" content="Demo client app "><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0"><link rel="stylesheet" href="./style.css"><script src="https://cdn.jsdelivr.net/npm/es-module-shims@1.10.0/dist/es-module-shims.js" async=""></script><script type="importmap">{
+  "imports": {}
+}</script></head><body>
+<script>window.livecodes = window.livecodes || {};</script><title>Market place client </title><meta name="title" content="Market place client "><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"><style id="__livecodes_styles__"></style><script src="https://cdn.jsdelivr.net/npm/es-module-shims@1.10.0/dist/es-module-shims.js" async=""></script><link rel="stylesheet" href="/index.css">
+
+<script>window.livecodes = window.livecodes || {};</script><title>Nav client </title><meta name="title" content="Nav client "><meta name="description" content="With voice msg and count down "><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"><link rel="stylesheet" href="./style.css"><script src="https://cdn.jsdelivr.net/npm/es-module-shims@1.10.0/dist/es-module-shims.js" async=""></script>
+
+
+
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Customer Portal - Navrose Stitching Point</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/9.15.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.15.0/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.15.0/firebase-storage-compat.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display.swap');
+        
+        :root {
+            --color-primary: #581c87; /* Purple-900 */
+            --color-primary-deep: #4c1d95; /* Purple-950 for the wave */
+            --color-secondary: #a21caf; /* Fuchsia-600 */
+            --color-text: #f9fafb; /* Gray-50 */
+            --color-text-dark: #1f2937; /* Gray-800 */
+            --color-bg: #f9fafb; /* Gray-50 */
+            --color-card-bg: #ffffff;
+            --color-border: #e2e8f0;
+        }
+
+        html { scroll-behavior: smooth; }
+
+        body {
+            font-family: 'Poppins', sans-serif;
+            background-color: var(--color-primary); /* For overscroll color */
+            color: var(--color-text);
+            position: relative; /* Ensure body is a positioning context */
+        }
+        
+        .main-container {
+            width: 100%;
+            max-width: 480px; /* Mobile-first design */
+            margin: 0 auto;
+            height: 100vh; /* Fallback for older browsers */
+            height: 100dvh; /* Use dynamic viewport height to adapt to browser UI */
+            overflow: hidden; /* Keep this to contain the scrolling view */
+            background-color: var(--color-primary);
+            display: flex;
+            flex-direction: column;
+            position: relative; /* Added for layout stability */
+        }
+
+        .header-section {
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 375 200' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 0H375V150C375 150 280 200 187.5 150C95 100 0 150 0 150V0Z' fill='%234c1d95'/%3E%3C/svg%3E");
+            background-size: cover;
+            background-position: bottom;
+            background-repeat: no-repeat;
+            min-height: 250px;
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            flex-shrink: 0;
+            position: relative;
+        }
+
+        #main-view {
+            background-color: var(--color-bg);
+            border-top-left-radius: 1.5rem; /* 24px */
+            border-top-right-radius: 1.5rem; /* 24px */
+            padding-top: 1.5rem;
+            margin-top: -1.5rem; /* Pull it up to overlap with the header wave */
+            position: relative;
+            z-index: 10;
+            flex-grow: 1;
+            overflow-x: hidden; /* Prevent horizontal scroll on main view, enabling inner scroll */
+            min-width: 0; /* Fix for nested scrolling in flex containers */
+            overflow-y: auto; /* Allow vertical scrolling within main view */
+            padding-bottom: calc(80px + env(safe-area-inset-bottom)); /* Space for nav bar + safe area */
+        }
+        
+        .modal { 
+            background-color: rgba(15, 23, 42, 0.6); 
+            backdrop-filter: blur(5px); 
+            -webkit-backdrop-filter: blur(5px);
+        }
+        
+        /* Marketplace Slider Styles */
+        .slider-wrapper {
+            display: flex;
+            gap: 1rem;
+            overflow-x: auto;
+            scroll-snap-type: x mandatory;
+            padding: 0.5rem 1rem 1.5rem 1rem;
+            scrollbar-width: none; /* Firefox */
+            -webkit-overflow-scrolling: touch; /* Enable momentum scrolling on iOS */
+        }
+        .slider-wrapper::-webkit-scrollbar { display: none; } /* Chrome, Safari */
+        
+        .product-card {
+            flex: 0 0 180px; /* Increased card width */
+            scroll-snap-align: start;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            background-color: var(--color-card-bg);
+            border-radius: 0.75rem;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+            overflow: hidden;
+            color: var(--color-text-dark);
+            position: relative;
+        }
+        .product-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+        }
+        .product-card .image-container {
+            aspect-ratio: 1 / 1;
+            background-color: #f3f4f6;
+        }
+        .product-card .image-container img {
+            width: 100%; height: 100%; object-fit: cover;
+        }
+        .product-card .info {
+            padding: 0.75rem;
+            font-size: 0.875rem;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            min-height: 110px;
+        }
+        .product-card .add-to-cart-btn {
+            position: absolute;
+            bottom: 12px;
+            right: 12px;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background-color: var(--color-primary);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            transition: transform 0.2s ease;
+        }
+        .product-card .add-to-cart-btn:hover {
+            transform: scale(1.1);
+        }
+         .product-card .type-label {
+            position: absolute;
+            top: 8px;
+            left: 8px;
+            background-color: rgba(0,0,0,0.5);
+            color: white;
+            padding: 2px 8px;
+            border-radius: 99px;
+            font-size: 0.65rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        /* Bottom Navigation */
+        .bottom-nav {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            max-width: 480px;
+            margin: 0 auto;
+            background-color: #fff;
+            border-top: 1px solid var(--color-border);
+            display: flex;
+            justify-content: space-around;
+            align-items: flex-start; /* Align to top for padding */
+            height: calc(70px + env(safe-area-inset-bottom));
+            padding-bottom: env(safe-area-inset-bottom);
+            box-shadow: 0 -2px 10px rgba(0,0,0,0.05);
+            border-top-left-radius: 20px;
+            border-top-right-radius: 20px;
+            z-index: 20;
+        }
+        .nav-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center; /* Center vertically */
+            height: 70px; /* Fixed height for the touch area */
+            color: #9ca3af; /* gray-400 */
+            font-size: 0.75rem;
+            position: relative;
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 4px;
+            flex-grow: 1; /* Make items take equal space */
+        }
+        .nav-item.active { color: var(--color-primary); }
+        .nav-item span:first-child { font-size: 1.5rem; }
+        
+        /* General buttons */
+        .btn {
+            padding: 0.6rem 1.25rem;
+            border-radius: 0.5rem;
+            font-weight: 600;
+            text-align: center;
+            transition: all 0.2s ease-in-out;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+        
+        /* Chat bubble styles */
+        .chat-bubble-wrapper { display: flex; flex-direction: column; }
+        .chat-bubble { max-width: 80%; padding: 10px 14px; border-radius: 16px; word-wrap: break-word; }
+        .chat-bubble.sent { background-color: var(--color-primary); color: white; align-self: flex-end; border-bottom-right-radius: 4px; }
+        .chat-bubble.received { background-color: #e5e7eb; color: #1f2937; align-self: flex-start; border-bottom-left-radius: 4px;}
+        .chat-timestamp { font-size: 0.65rem; color: #9ca3af; margin-top: 4px; }
+        .chat-bubble-wrapper.sent .chat-timestamp { align-self: flex-end; }
+        .chat-bubble-wrapper.received .chat-timestamp { align-self: flex-start; }
+        
+        /* Sub-tab styles */
+        .sub-tab-btn {
+            border-bottom: 2px solid transparent;
+            padding: 0.5rem 1rem;
+            font-weight: 500;
+            color: #6b7280;
+        }
+        .sub-tab-btn.active {
+            border-color: var(--color-primary);
+            color: var(--color-primary);
+            font-weight: 600;
+        }
+        .sub-tab-btn-secondary {
+            background-color: #f3f4f6;
+            color: #4b5563;
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            font-weight: 500;
+            font-size: 0.875rem;
+        }
+        .sub-tab-btn-secondary.active {
+            background-color: var(--color-primary);
+            color: white;
+            font-weight: 600;
+        }
+        
+        .grid-view-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+            gap: 1rem;
+        }
+        
+        /* Chat Modal Fullscreen on Mobile */
+        #chat-modal {
+            padding: 0;
+            align-items: flex-start;
+            justify-content: flex-start;
+        }
+        #chat-modal > div {
+            max-width: 100%;
+            height: 100%;
+            border-radius: 0;
+        }
+
+        @media (min-width: 500px) {
+            body {
+                padding: 2rem;
+                background-color: #e2e8f0; /* slate-200 */
+                height: auto;
+                overflow: auto;
+            }
+            .main-container {
+                max-width: 1280px;
+                min-height: calc(100vh - 4rem);
+                height: auto; /* Override the 100dvh for desktop */
+                margin: 0 auto;
+                border-radius: 1.5rem;
+                box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04);
+                position: relative;
+                overflow: hidden;
+            }
+            #main-view {
+                scrollbar-width: thin;
+            }
+             #main-view::-webkit-scrollbar {
+                display: block;
+                width: 6px;
+            }
+            #main-view::-webkit-scrollbar-thumb {
+                background-color: #d1d5db;
+                border-radius: 3px;
+            }
+            .bottom-nav {
+                position: absolute;
+                max-width: 100%;
+                border-radius: 0;
+                border-bottom-left-radius: 1.5rem;
+                border-bottom-right-radius: 1.5rem;
+            }
+            .modal {
+                /* Ensure modals are contained within the viewport not the container */
+                position: fixed;
+            }
+            #chat-modal {
+                padding: 1rem; /* p-4 */
+                align-items: center;
+                justify-content: center;
+            }
+            #chat-modal > div {
+                max-width: 28rem; /* max-w-md */
+                height: 80vh;
+                border-radius: 1rem; /* rounded-2xl */
+            }
+        }
+    </style>
+
+<div class="main-container">
+
+    <!-- Header -->
+    <header class="header-section text-center">
+        <div class="absolute top-4 right-4 flex items-center gap-4">
+            <button id="chat-btn-header" class="relative text-white">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path></svg>
+                <span id="chat-badge-header" class="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center hidden"></span>
+            </button>
+            <button id="notification-btn-header" class="relative text-white">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path></svg>
+                <span id="notification-badge" class="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center hidden"></span>
+            </button>
+        </div>
+        
+        <div class="w-20 h-20 bg-white rounded-full flex items-center justify-center shadow-lg mb-3">
+             <svg class="w-16 h-16 text-purple-900" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                <path d="M30,75 C40,25 60,25 70,75" stroke="currentColor" stroke-width="8" fill="none" stroke-linecap="round" stroke-linejoin="round"></path>
+                <path d="M20,65 Q50,70 80,65" stroke="currentColor" stroke-width="4" fill="none" stroke-linecap="round"></path>
+            </svg>
+        </div>
+        <h1 class="text-3xl font-bold tracking-tight">NAVROSE</h1>
+        <p class="text-sm font-medium opacity-80 tracking-widest">STITCHING POINT</p>
+        <div id="auth-area" class="mt-6">
+            <button id="login-btn" class="bg-white text-purple-900 font-bold py-3 px-12 rounded-full shadow-xl transform hover:scale-105 transition-transform">Login</button>
+            <div id="welcome-area" class="hidden">
+                 <p class="text-lg">Welcome, <span id="customer-name-display" class="font-bold"></span>!</p>
+                 <button id="logout-btn" class="text-xs text-fuchsia-300 hover:underline mt-1">Logout</button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main id="main-view">
+        <div id="tab-content">
+             <!-- This content will be rendered by JS -->
+        </div>
+    </main>
+    
+    <!-- Bottom Navigation -->
+    <footer class="bottom-nav">
+        <button class="nav-item active" data-tab="marketplace">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path></svg>
+            <span>Market</span>
+        </button>
+        <button class="nav-item" data-tab="my-orders">
+             <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
+            <span>Orders</span>
+        </button>
+        <button class="nav-item" data-tab="cart">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+            <span id="cart-badge" class="absolute top-0 right-0 bg-red-500 text-white text-xs font-bold rounded-full h-4 w-4 flex items-center justify-center transform translate-x-1/2 -translate-y-1/2 hidden">0</span>
+            <span>Cart</span>
+        </button>
+         <button class="nav-item" data-tab="chat">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path></svg>
+            <span>Chat</span>
+        </button>
+        <button class="nav-item" data-tab="profile">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
+            <span>Profile</span>
+        </button>
+    </footer>
+</div>
+
+    <!-- Modals and Floating Elements -->
+    <div id="login-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 hidden modal">
+         <div class="w-full max-w-sm mx-auto bg-white p-8 rounded-2xl shadow-2xl text-gray-800">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-2xl font-bold text-slate-800">Customer Login</h2>
+                <button onclick="document.getElementById('login-modal').classList.add('hidden')" class="text-2xl text-gray-500">×</button>
+            </div>
+            <form id="login-form">
+                <div class="mb-4">
+                    <label for="mobile-number" class="block text-sm font-medium text-gray-700 sr-only">Mobile Number</label>
+                    <input type="tel" id="mobile-number" class="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 text-lg" required="" placeholder="10-digit mobile number">
+                </div>
+                <button type="submit" class="w-full bg-purple-800 text-white py-3 px-4 rounded-lg hover:bg-purple-900 font-semibold text-lg transition-all duration-300">Login</button>
+            </form>
+        </div>
+    </div>
+    
+    <div id="modal-container" class="fixed inset-0 z-50 flex items-center justify-center p-4 hidden modal">
+        <div id="modal-content" class="bg-white rounded-lg shadow-xl w-full max-w-lg text-gray-800"></div>
+    </div>
+
+    <!-- Notification Modal -->
+    <div id="notifications-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 hidden modal">
+        <div class="w-full max-w-md mx-auto bg-white p-6 rounded-2xl shadow-2xl text-gray-800 max-h-[80vh] flex flex-col">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-2xl font-bold text-slate-800">Notifications</h2>
+                <button onclick="document.getElementById('notifications-modal').classList.add('hidden')" class="text-2xl text-gray-500">×</button>
+            </div>
+            <div id="notifications-list" class="flex-grow overflow-y-auto space-y-3">
+                <p class="text-gray-500 text-center">No new notifications.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Chat Modal -->
+    <div id="chat-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 hidden modal">
+        <div class="w-full max-w-md mx-auto bg-white rounded-2xl shadow-2xl text-gray-800 h-[80vh] flex flex-col">
+            <div class="flex-shrink-0 p-4 border-b flex justify-between items-center bg-gray-50 rounded-t-2xl">
+                <div>
+                    <h2 class="text-xl font-bold text-slate-800">Chat with Support</h2>
+                    <p class="text-xs text-green-600 font-semibold flex items-center gap-1"><span class="h-2 w-2 bg-green-500 rounded-full"></span> Online</p>
+                </div>
+                <button onclick="document.getElementById('chat-modal').classList.add('hidden')" class="text-2xl text-gray-500">×</button>
+            </div>
+            <div id="chat-messages" class="flex-grow overflow-y-auto p-4 space-y-4 bg-gray-100 flex flex-col">
+                <!-- Chat messages will be rendered here -->
+            </div>
+            <form id="chat-form" class="flex-shrink-0 p-4 border-t flex gap-2 bg-white rounded-b-2xl">
+                <input type="text" id="chat-input" class="flex-grow px-4 py-2 border rounded-full bg-gray-100 focus:ring-2 focus:ring-purple-500 focus:outline-none" placeholder="Type a message..." required="" autocomplete="off">
+                <button type="submit" class="bg-purple-800 text-white rounded-full p-2 w-10 h-10 flex-shrink-0 transform hover:scale-110 transition-transform">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="currentColor" viewBox="0 0 20 20"><path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z"></path></svg>
+                </button>
+            </form>
+        </div>
+    </div>
+    
+    <div id="toast" class="hidden fixed bottom-24 right-5 bg-gray-900 text-white py-2 px-4 rounded-lg shadow-lg z-50"></div>
+    <audio id="notification-sound" src="https://freesound.org/data/previews/415/415763_6142149-lq.mp3" preload="auto"></audio>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyC0_DQIiyaVQllFH4pxH1Dm3r2kFXXoOgc",
+            authDomain: "navrosetailorapp.firebaseapp.com",
+            databaseURL: "https://navrosetailorapp-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "navrosetailorapp"
+        };
+        
+        let db, storage;
+        let currentUser = null;
+        let allCustomers = [];
+        let allProducts = [];
+        let allTransactions = [];
+        let marketplaceSettings = {};
+        
+        let cart = [];
+        let notifications = [];
+        let unreadNotifications = 0;
+        let unreadChats = 0;
+        let voiceEnabled = true;
+        let appliedPromo = null;
+        let rentalCountdownInterval = null;
+
+        const ADMIN_MOBILE = "0000000000"; // Placeholder for Admin's mobile number for chat
+        const ADMIN_WHATSAPP_NUMBER = "917696272780";
+
+        let notificationListener = null;
+        let chatListener = null;
+        let sellerListeners = [];
+        
+        const loginBtn = document.getElementById('login-btn');
+        const loginModal = document.getElementById('login-modal');
+        const authArea = document.getElementById('auth-area');
+        const welcomeArea = document.getElementById('welcome-area');
+        const mainView = document.getElementById('main-view');
+        const tabContent = document.getElementById('tab-content');
+
+        // --- UTILS ---
+        function showToast(message) {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.classList.remove('hidden');
+            setTimeout(() => toast.classList.add('hidden'), 3000);
+        }
+
+        function playNotificationSound() {
+            document.getElementById('notification-sound').play().catch(e => console.log("Audio play failed:", e));
+        }
+
+        function speak(text) {
+            if (!voiceEnabled || !('speechSynthesis' in window)) return;
+            speechSynthesis.cancel();
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = 'en-IN';
+            speechSynthesis.speak(utterance);
+        }
+        
+        // --- AUTH ---
+        loginBtn.addEventListener('click', () => {
+            loginModal.classList.remove('hidden');
+        });
+        
+        document.getElementById('login-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const mobile = document.getElementById('mobile-number').value.trim();
+            if (/^\d{10}$/.test(mobile)) {
+                await login(mobile);
+            } else {
+                showToast("Please enter a valid 10-digit mobile number.");
+            }
+        });
+
+        async function login(mobile) {
+            const customersSnap = await firebase.database().ref('customers').once('value');
+            allCustomers = Object.values(customersSnap.val() || {});
+            const customer = allCustomers.find(c => c.mobile === mobile);
+            
+            if (!customer) {
+                alert("Please register first. Contact 7696272780 for registration.");
+                return;
+            }
+
+            currentUser = { mobile, name: customer.name };
+            localStorage.setItem('loggedInUser', JSON.stringify(currentUser));
+            
+            const [settingsSnap, productsSnap, transactionsSnap] = await Promise.all([
+                firebase.database().ref('marketplaceSettings').once('value'),
+                firebase.database().ref('marketplaceProducts').once('value'),
+                firebase.database().ref('transactions').once('value')
+            ]);
+            
+            marketplaceSettings = settingsSnap.val() || {};
+            allProducts = Object.values(productsSnap.val() || {});
+            allTransactions = Object.values(transactionsSnap.val() || {});
+            
+            loginModal.classList.add('hidden');
+            authArea.classList.add('hidden');
+            welcomeArea.classList.remove('hidden');
+            
+            document.getElementById('customer-name-display').textContent = customer.name;
+            
+            setupNotificationListener();
+            setupChatListener();
+            setupSellerListeners();
+            
+            switchTab('marketplace');
+        }
+        
+        function performLogout() {
+             if (notificationListener) notificationListener.off();
+             if (chatListener) chatListener.ref.off(chatListener.event);
+             if (rentalCountdownInterval) clearInterval(rentalCountdownInterval);
+             sellerListeners.forEach(listener => listener.ref.off(listener.event));
+             
+             currentUser = null;
+             localStorage.removeItem('loggedInUser');
+             cart = [];
+             saveCart();
+             
+             authArea.classList.remove('hidden');
+             welcomeArea.classList.add('hidden');
+             tabContent.innerHTML = '<p class="text-center text-gray-500 p-8">Please log in to see content.</p>';
+        }
+
+        document.getElementById('logout-btn').addEventListener('click', performLogout);
+
+        // --- TABS & NAVIGATION ---
+        document.querySelectorAll('.bottom-nav .nav-item').forEach(btn => {
+            btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+        });
+        
+        document.getElementById('chat-btn-header').addEventListener('click', () => {
+             if (!currentUser) { showToast("Please log in to chat."); return; }
+             document.getElementById('chat-modal').classList.remove('hidden');
+             unreadChats = 0;
+             updateChatBadge();
+        });
+
+        document.getElementById('notification-btn-header').addEventListener('click', () => {
+             if (!currentUser) { showToast("Please log in to see notifications."); return; }
+             renderNotifications();
+             document.getElementById('notifications-modal').classList.remove('hidden');
+             unreadNotifications = 0;
+             updateNotificationBadge();
+        });
+
+        function switchTab(tabId) {
+            if (!currentUser && tabId !== 'marketplace') {
+                 showToast("Please log in to view this section.");
+                 return;
+            }
+            document.querySelectorAll('.bottom-nav .nav-item').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.tab === tabId);
+            });
+            
+            mainView.classList.remove('bg-gray-50'); // Reset background
+            
+            switch(tabId) {
+                case 'my-orders': 
+                    mainView.classList.add('bg-gray-50');
+                    renderMyOrders(); 
+                    break;
+                case 'marketplace': 
+                    renderMarketplace(); 
+                    break;
+                case 'cart':
+                    renderCart();
+                    break;
+                case 'chat':
+                    document.getElementById('chat-modal').classList.remove('hidden');
+                    unreadChats = 0;
+                    updateChatBadge();
+                    break;
+                case 'profile':
+                    mainView.classList.add('bg-gray-50');
+                    renderProfile();
+                    break;
+            }
+        }
+
+        // --- RENDER FUNCTIONS ---
+        async function renderMyOrders() {
+            if (!currentUser) {
+                tabContent.innerHTML = `<div class="p-4 text-center text-gray-800">Please log in to view orders.</div>`;
+                return;
+            }
+            tabContent.innerHTML = `
+                <div class="p-4">
+                    <div id="active-rentals-section" class="mb-6"></div>
+                    <div class="flex border-b mb-4">
+                        <button data-subtab="stitching" class="sub-tab-btn active">Stitching Orders</button>
+                        <button data-subtab="marketplace" class="sub-tab-btn">Marketplace Transactions</button>
+                    </div>
+                    <div id="orders-subtab-content"></div>
+                </div>
+            `;
+            
+            document.querySelectorAll('.sub-tab-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    document.querySelectorAll('.sub-tab-btn').forEach(b => b.classList.remove('active'));
+                    e.target.classList.add('active');
+                    if (e.target.dataset.subtab === 'stitching') renderStitchingOrders();
+                    else renderMarketplaceTransactions();
+                });
+            });
+
+            renderMyActiveRentals();
+            renderStitchingOrders();
+        }
+        
+        async function renderStitchingOrders() {
+            const content = document.getElementById('orders-subtab-content');
+            content.innerHTML = `<p class="text-center text-gray-800">Loading your stitching orders...</p>`;
+
+            const ordersRef = firebase.database().ref('orders').orderByChild('customerMobile').equalTo(currentUser.mobile);
+            const snapshot = await ordersRef.once('value');
+            const orders = Object.values(snapshot.val() || {});
+
+            if (orders.length === 0) {
+                 content.innerHTML = `<div class="p-4 text-center"><p class="text-gray-600">You have no stitching orders.</p></div>`;
+                 return;
+            }
+
+            content.innerHTML = `
+                <div class="space-y-3">
+                    <h2 class="text-xl font-bold text-gray-800 px-2">My Stitching Orders</h2>
+                    ${orders.sort((a,b) => new Date(b.bookingDate) - new Date(a.bookingDate)).map(o => {
+                        const itemsList = o.items ? o.items.map(i => i.item).join(', ') : o.description;
+                        const pickupDate = o.items ? o.items[0]?.pickupDate : o.pickupDate;
+                        return `
+                        <div class="bg-white p-4 rounded-lg shadow-sm">
+                            <div class="flex justify-between items-start">
+                                <h3 class="font-bold text-base text-slate-800">Order #${o.orderNumber}</h3>
+                                <span class="text-xs font-semibold px-2 py-1 rounded-full ${o.status === 'Completed' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}">${o.status}</span>
+                            </div>
+                            <p class="text-sm text-gray-600 mt-1">Items: ${itemsList}</p>
+                            <p class="text-sm text-gray-600">Pickup: ${pickupDate || 'N/A'}</p>
+                        </div>
+                    `}).join('')}
+                </div>
+            `;
+        }
+
+        function renderMarketplaceTransactions() {
+            const content = document.getElementById('orders-subtab-content');
+            content.innerHTML = `
+                <div class="flex gap-2 mb-4 p-1 bg-gray-200 rounded-lg">
+                    <button data-mtsubtab="purchases" class="sub-tab-btn-secondary active flex-1">My Purchases</button>
+                    <button data-mtsubtab="sales" class="sub-tab-btn-secondary flex-1">My Sales</button>
+                    <button data-mtsubtab="rentals" class="sub-tab-btn-secondary flex-1">My Rentals</button>
+                </div>
+                <div id="mt-subtab-content"></div>
+            `;
+
+            const switchMTSubtab = (tab) => {
+                 document.querySelectorAll('.sub-tab-btn-secondary').forEach(b => b.classList.remove('active'));
+                 document.querySelector(`.sub-tab-btn-secondary[data-mtsubtab="${tab}"]`).classList.add('active');
+                 switch(tab) {
+                    case 'purchases': renderMTPurchases(); break;
+                    case 'sales': renderMTSales(); break;
+                    case 'rentals': renderMTRentals(); break;
+                 }
+            };
+
+            document.querySelectorAll('.sub-tab-btn-secondary').forEach(btn => {
+                btn.addEventListener('click', () => switchMTSubtab(btn.dataset.mtsubtab));
+            });
+
+            switchMTSubtab('purchases'); // Default view
+        }
+
+        function renderMTPurchases() {
+            const content = document.getElementById('mt-subtab-content');
+            const myPurchases = allTransactions.filter(t => t.buyerMobile === currentUser.mobile && t.type === 'sale');
+
+            if (myPurchases.length === 0) {
+                content.innerHTML = `<div class="text-center p-8 bg-white rounded-lg shadow"><p class="text-gray-600">You haven't purchased any items yet.</p></div>`;
+                return;
+            }
+            
+            content.innerHTML = `<div class="space-y-3">${myPurchases.map(t => {
+                const product = allProducts.find(p => p.id === t.productId) || {};
+                return `
+                <div class="bg-white p-4 rounded-lg shadow-sm">
+                    <p class="font-bold text-slate-800">${product.title || 'Unknown Item'}</p>
+                    <div class="flex justify-between items-center text-sm mt-1">
+                        <span class="text-gray-600">Date: ${new Date(t.timestamp).toLocaleDateString()}</span>
+                        <span class="font-semibold text-purple-800">Paid: ₹${(t.amountPaid || 0).toFixed(2)}</span>
+                    </div>
+                     <p class="text-xs text-gray-500 mt-1">Sold by: ${product.sellerName || 'Unknown Seller'}</p>
+                </div>`;
+            }).join('')}</div>`;
+        }
+        
+        function renderMTSales() {
+            const content = document.getElementById('mt-subtab-content');
+            const mySales = allTransactions.filter(t => t.sellerMobile === currentUser.mobile && t.type === 'sale');
+
+             if (mySales.length === 0) {
+                content.innerHTML = `<div class="text-center p-8 bg-white rounded-lg shadow"><p class="text-gray-600">You haven't sold any items yet.</p></div>`;
+                return;
+            }
+
+            content.innerHTML = `<div class="space-y-3">${mySales.map(t => {
+                const product = allProducts.find(p => p.id === t.productId) || {};
+                const buyer = allCustomers.find(c => c.mobile === t.buyerMobile) || {};
+                const netReceived = (t.amountPaid || 0) - (t.commission || 0);
+                return `
+                <div class="bg-white p-4 rounded-lg shadow-sm">
+                    <p class="font-bold text-slate-800">${product.title || 'Unknown Item'}</p>
+                    <div class="flex justify-between items-center text-sm mt-1">
+                        <span class="text-gray-600">Date: ${new Date(t.timestamp).toLocaleDateString()}</span>
+                        <span class="font-semibold text-green-600">Received: ₹${netReceived.toFixed(2)}</span>
+                    </div>
+                     <p class="text-xs text-gray-500 mt-1">Bought by: ${buyer.name || 'Unknown Buyer'}</p>
+                </div>`;
+            }).join('')}</div>`;
+        }
+
+        function renderMTRentals() {
+            const content = document.getElementById('mt-subtab-content');
+            const myRentalPurchases = allTransactions.filter(t => t.buyerMobile === currentUser.mobile && t.type === 'rent');
+            const myRentalSales = allTransactions.filter(t => t.sellerMobile === currentUser.mobile && t.type === 'rent');
+
+            if (myRentalPurchases.length === 0 && myRentalSales.length === 0) {
+                content.innerHTML = `<div class="text-center p-8 bg-white rounded-lg shadow"><p class="text-gray-600">You have no rental history.</p></div>`;
+                return;
+            }
+
+            let html = '<div class="space-y-6">';
+            if (myRentalPurchases.length > 0) {
+                html += '<div><h3 class="text-lg font-bold mb-2 text-gray-800">Items I\'m Renting</h3><div class="space-y-3">';
+                myRentalPurchases.forEach(t => {
+                    const product = allProducts.find(p => p.id === t.productId) || {};
+                    html += `<div class="bg-white p-4 rounded-lg shadow-sm">
+                                <p class="font-bold text-slate-800">${product.title || 'Unknown'}</p>
+                                <p class="text-sm text-gray-600">Rented for ${t.rentalDays} day(s)</p>
+                                <p class="text-sm text-gray-500">Rent Fee: ₹${(t.rentalTotal || 0).toFixed(2)} | Deposit: ₹${(t.securityDeposit || 0).toFixed(2)} (${t.depositStatus})</p>
+                             </div>`;
+                });
+                html += '</div></div>';
+            }
+             if (myRentalSales.length > 0) {
+                html += '<div><h3 class="text-lg font-bold mb-2 text-gray-800">Items I\'ve Rented Out</h3><div class="space-y-3">';
+                myRentalSales.forEach(t => {
+                    const product = allProducts.find(p => p.id === t.productId) || {};
+                    const netReceived = (t.rentalTotal || 0) - (t.commission || 0);
+                    html += `<div class="bg-white p-4 rounded-lg shadow-sm">
+                                <p class="font-bold text-slate-800">${product.title || 'Unknown'}</p>
+                                <p class="text-sm text-gray-600">Rented for ${t.rentalDays} day(s)</p>
+                                <p class="font-semibold text-sm text-green-600">Net Received: ₹${netReceived.toFixed(2)}</p>
+                             </div>`;
+                });
+                html += '</div></div>';
+            }
+            html += '</div>';
+            content.innerHTML = html;
+        }
+        
+        function renderMarketplace() {
+             tabContent.innerHTML = `
+                <div id="marketplace-content"></div>
+             `;
+             renderProductGrid();
+        }
+
+        async function renderProductGrid() {
+            const content = document.getElementById('marketplace-content');
+            content.innerHTML = `<p class="text-center text-gray-800 p-4">Loading items...</p>`;
+            
+            const productsSnap = await db.ref('marketplaceProducts').once('value');
+            const productsData = productsSnap.val() || {};
+            allProducts = Object.values(productsData);
+            
+            const availableProducts = allProducts.filter(p => p.status === 'approved');
+            const rentedProductIds = new Set(allTransactions.filter(t => t.type === 'rent' && t.status === 'rented_out').map(t => t.productId));
+            
+            if(availableProducts.length === 0 && !allProducts.some(p => p.sellerMobile === currentUser.mobile)) {
+                content.innerHTML = `<div class="text-center p-8"><p class="text-gray-600">No items in the marketplace yet.</p></div>`;
+                return;
+            }
+            
+            const getGoogleDriveImageUrl = (sharingUrl) => {
+                if (!sharingUrl || !sharingUrl.includes('drive.google.com')) return sharingUrl || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=800&q=80';
+                const fileIdMatch = sharingUrl.match(/file\/d\/([a-zA-Z0-9_-]+)/);
+                if (fileIdMatch && fileIdMatch[1]) return `https://drive.google.com/uc?export=view&id=${fileIdMatch[1]}`;
+                return 'https://via.placeholder.com/300x200.png?text=Invalid+Link';
+            };
+
+            const createMyListingCard = (p) => {
+                const imageUrl = getGoogleDriveImageUrl(p.imageUrl);
+                const statusText = (p.status || '').replace(/_/g, ' ');
+                let statusClass = 'bg-gray-100 text-gray-800';
+                if (p.status === 'sold') statusClass = 'bg-red-100 text-red-800';
+                else if (p.status === 'approved') statusClass = 'bg-green-100 text-green-800';
+                else if (p.status === 'pending_approval') statusClass = 'bg-yellow-100 text-yellow-800';
+                else if (p.status === 'rejected') statusClass = 'bg-slate-200 text-slate-600';
+                
+                return `
+                <div class="product-card">
+                    <div class="image-container relative">
+                        <img src="${imageUrl}" alt="${p.title}" class="w-full h-full object-cover">
+                        <span class="absolute top-2 left-2 text-xs font-semibold px-2 py-1 rounded-full capitalize ${statusClass}">${statusText}</span>
+                    </div>
+                    <div class="p-3">
+                        <p class="font-bold truncate">${p.title}</p>
+                        ${p.price ? `<p class="text-sm">Buy: ₹${p.price}</p>`: ''}
+                        ${p.rentPrice ? `<p class="text-sm">Rent: ₹${p.rentPrice}/day</p>`: ''}
+                    </div>
+                </div>`;
+            }
+
+            const createProductCard = (p, type) => {
+                const imageUrl = getGoogleDriveImageUrl(p.imageUrl);
+                let priceHTML = '', typeLabel = '';
+                
+                if(type === 'sale' && p.price) {
+                    priceHTML = `₹${p.price}`;
+                    typeLabel = 'SELL';
+                } else if(type === 'rent' && p.rentPrice) {
+                    priceHTML = `₹${p.rentPrice}<span class="font-normal text-xs">/day</span>`;
+                    typeLabel = 'RENT';
+                } else {
+                    return ''; // Don't render if price for this type doesn't exist
+                }
+
+                const isRented = rentedProductIds.has(p.id);
+                const isSold = p.stock !== undefined && p.stock <= 0;
+                let overlayHTML = '';
+                if (isRented) {
+                    overlayHTML = `<div class="absolute inset-0 bg-black bg-opacity-60 flex items-center justify-center rounded-t-lg"><span class="text-white font-bold text-lg tracking-wider">RENTED OUT</span></div>`;
+                } else if (isSold) {
+                     overlayHTML = `<div class="absolute inset-0 bg-black bg-opacity-60 flex items-center justify-center rounded-t-lg"><span class="text-white font-bold text-lg tracking-wider">SOLD OUT</span></div>`;
+                }
+                
+                const cardClass = (isRented || isSold) ? 'product-card opacity-70' : 'product-card';
+                const disabledProp = (isRented || isSold || p.sellerMobile === currentUser.mobile) ? 'disabled' : '';
+                const buttonClass = (isRented || isSold || p.sellerMobile === currentUser.mobile) ? 'add-to-cart-btn bg-gray-400 cursor-not-allowed' : 'add-to-cart-btn';
+
+
+                return `
+                <div class="${cardClass}">
+                    <div class="image-container relative">
+                        <img src="${imageUrl}" alt="${p.title}">
+                        ${overlayHTML}
+                        <span class="type-label">${typeLabel}</span>
+                    </div>
+                    <div class="info">
+                        <div>
+                           <p class="font-bold mt-1 truncate">${p.title}</p>
+                           <p class="font-semibold text-purple-800">${priceHTML}</p>
+                        </div>
+                         <button onclick="addToCart('${p.id}')" class="${buttonClass}" aria-label="Add ${p.title} to cart" ${disabledProp}>
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M3 1a1 1 0 000 2h1.22l.305 1.222a.997.997 0 00.01.042l1.358 5.43-.893.892C3.74 11.846 4.632 14 6.414 14H15a1 1 0 000-2H6.414l1-1H14a1 1 0 00.894-.553l3-6A1 1 0 0017 3H6.28l-.31-1.243A1 1 0 005 1H3zM16 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM6.5 18a1.5 1.5 0 100-3 1.5 1.5 0 000 3z" /></svg>
+                        </button>
+                    </div>
+                </div>`;
+            };
+
+            const createSliderSection = (title, products, type, isMyListing = false) => {
+                const cards = isMyListing ? products.map(p => createMyListingCard(p)).join('') : products.map(p => createProductCard(p, type)).join('');
+                if (cards.trim() === '') return '';
+                return `
+                    <div class="mb-6">
+                        <div class="flex justify-between items-center mb-2 px-4">
+                            <h2 class="text-2xl font-bold text-slate-800">${title}</h2>
+                            <button onclick="renderGridView('${type}')" class="text-purple-800 font-semibold text-sm">View all &rarr;</button>
+                        </div>
+                        <div class="slider-wrapper">
+                            ${cards}
+                        </div>
+                    </div>
+                `;
+            };
+
+            const myListings = allProducts.filter(p => p.sellerMobile === currentUser.mobile);
+            const myListingSlider = myListings.length > 0 ? createSliderSection('My Listings', myListings, null, true) : '';
+            
+            const saleProducts = availableProducts.filter(p => p.listingType === 'sale' || p.listingType === 'both');
+            const rentProducts = availableProducts.filter(p => p.listingType === 'rent' || p.listingType === 'both');
+
+            content.innerHTML = `
+                ${myListingSlider}
+                ${createSliderSection('For Sale', saleProducts, 'sale')}
+                ${createSliderSection('For Rent', rentProducts, 'rent')}
+            `;
+        }
+
+        function renderGridView(type) {
+            const content = document.getElementById('marketplace-content');
+            const rentedProductIds = new Set(allTransactions.filter(t => t.type === 'rent' && t.status === 'rented_out').map(t => t.productId));
+            const products = allProducts.filter(p => p.status === 'approved' && (p.listingType === type || p.listingType === 'both'));
+            
+            const title = type === 'sale' ? 'All Items For Sale' : 'All Items For Rent';
+
+             const getGoogleDriveImageUrl = (sharingUrl) => {
+                if (!sharingUrl || !sharingUrl.includes('drive.google.com')) return sharingUrl || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=800&q=80';
+                const fileIdMatch = sharingUrl.match(/file\/d\/([a-zA-Z0-9_-]+)/);
+                if (fileIdMatch && fileIdMatch[1]) return `https://drive.google.com/uc?export=view&id=${fileIdMatch[1]}`;
+                return 'https://via.placeholder.com/300x200.png?text=Invalid+Link';
+            };
+
+            const createGridCard = (p) => {
+                 const imageUrl = getGoogleDriveImageUrl(p.imageUrl);
+                let priceHTML = '', typeLabel = '';
+                
+                if(type === 'sale' && p.price) {
+                    priceHTML = `₹${p.price}`;
+                    typeLabel = 'SELL';
+                } else if(type === 'rent' && p.rentPrice) {
+                    priceHTML = `₹${p.rentPrice}<span class="font-normal text-xs">/day</span>`;
+                    typeLabel = 'RENT';
+                }
+                const isRented = rentedProductIds.has(p.id);
+                const isSold = p.stock !== undefined && p.stock <= 0;
+                let overlayHTML = isRented ? '<div class="absolute inset-0 bg-black bg-opacity-60 flex items-center justify-center rounded-t-lg"><span class="text-white font-bold text-lg">RENTED OUT</span></div>' : (isSold ? '<div class="absolute inset-0 bg-black bg-opacity-60 flex items-center justify-center rounded-t-lg"><span class="text-white font-bold text-lg">SOLD OUT</span></div>' : '');
+                const cardClass = (isRented || isSold) ? 'product-card opacity-70' : 'product-card';
+                const disabledProp = (isRented || isSold || p.sellerMobile === currentUser.mobile) ? 'disabled' : '';
+                const buttonClass = (isRented || isSold || p.sellerMobile === currentUser.mobile) ? 'add-to-cart-btn bg-gray-400 cursor-not-allowed' : 'add-to-cart-btn';
+
+                return `
+                <div class="${cardClass}">
+                    <div class="image-container relative">
+                        <img src="${imageUrl}" alt="${p.title}">
+                        ${overlayHTML}
+                        <span class="type-label">${typeLabel}</span>
+                    </div>
+                    <div class="info">
+                        <div>
+                           <p class="font-bold mt-1 truncate">${p.title}</p>
+                           <p class="font-semibold text-purple-800">${priceHTML}</p>
+                        </div>
+                         <button onclick="addToCart('${p.id}')" class="${buttonClass}" aria-label="Add ${p.title} to cart" ${disabledProp}>
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M3 1a1 1 0 000 2h1.22l.305 1.222a.997.997 0 00.01.042l1.358 5.43-.893.892C3.74 11.846 4.632 14 6.414 14H15a1 1 0 000-2H6.414l1-1H14a1 1 0 00.894-.553l3-6A1 1 0 0017 3H6.28l-.31-1.243A1 1 0 005 1H3zM16 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM6.5 18a1.5 1.5 0 100-3 1.5 1.5 0 000 3z" /></svg>
+                        </button>
+                    </div>
+                </div>`;
+            }
+
+            content.innerHTML = `
+                <div class="p-4">
+                    <div class="flex items-center mb-4">
+                        <button onclick="renderMarketplace()" class="text-purple-800 font-semibold text-sm">&larr; Back to Marketplace</button>
+                    </div>
+                    <h2 class="text-2xl font-bold text-slate-800 mb-4">${title}</h2>
+                    <div class="grid-view-container">
+                        ${products.map(createGridCard).join('')}
+                    </div>
+                </div>
+            `;
+        }
+        
+        // --- NOTIFICATIONS & LISTENERS ---
+        function setupNotificationListener() {
+            if (notificationListener) notificationListener.off();
+            if (!currentUser || !currentUser.mobile) return;
+            
+            const notifRef = db.ref(`clientNotifications/${currentUser.mobile}`);
+            notificationListener = notifRef.orderByChild('timestamp').startAt(Date.now());
+
+            notificationListener.on('child_added', (snapshot) => {
+                const notification = snapshot.val();
+                if (!notification) return;
+                
+                notifications.unshift(notification); // Add to start of array
+                unreadNotifications++;
+                updateNotificationBadge();
+                
+                playNotificationSound();
+                speak(notification.title || 'New notification');
+                showToast(`🔔 ${notification.title}`);
+            });
+        }
+        
+        function updateNotificationBadge() {
+            const badge = document.getElementById('notification-badge');
+            badge.textContent = unreadNotifications;
+            badge.classList.toggle('hidden', unreadNotifications === 0);
+        }
+
+        function renderNotifications() {
+            const list = document.getElementById('notifications-list');
+            if (notifications.length === 0) {
+                 list.innerHTML = `<p class="text-gray-500 text-center py-4">No new notifications.</p>`;
+                 return;
+            }
+            list.innerHTML = notifications.map(n => `
+                <div class="bg-gray-50 p-3 rounded-lg border">
+                    <p class="font-semibold text-gray-800">${n.title}</p>
+                    <p class="text-sm text-gray-600">${n.body}</p>
+                    <p class="text-xs text-gray-400 text-right mt-1">${new Date(n.timestamp).toLocaleString()}</p>
+                </div>
+            `).join('');
+        }
+
+        function setupSellerListeners() {
+            if (!currentUser) return;
+            const now = Date.now();
+            const newTransactionRef = db.ref('transactions').orderByChild('timestamp').startAt(now);
+            newTransactionRef.on('child_added', (snapshot) => {
+                const transaction = snapshot.val();
+                if (transaction && transaction.sellerMobile === currentUser.mobile) {
+                    const product = allProducts.find(p => p.id === transaction.productId);
+                    const productName = product ? product.title : 'your item';
+                    allTransactions.push(transaction);
+                    const message = transaction.type === 'rent' ? `Your item '${productName}' has been rented out.` : `Your item '${productName}' has been sold.`;
+                    showToast(message); playNotificationSound();
+                }
+            });
+            sellerListeners.push({ ref: newTransactionRef, event: 'child_added' });
+
+            const myProductsRef = db.ref('marketplaceProducts').orderByChild('sellerMobile').equalTo(currentUser.mobile);
+            myProductsRef.on('child_changed', (snapshot) => {
+                const product = snapshot.val();
+                const oldProduct = allProducts.find(p => p.id === product.id);
+                if (oldProduct && oldProduct.status !== product.status) {
+                    showToast(`Update for '${product.title}': Status is now ${product.status.replace(/_/g, ' ')}.`); playNotificationSound();
+                }
+            });
+            sellerListeners.push({ ref: myProductsRef, event: 'child_changed' });
+        }
+
+        // --- CHAT LOGIC ---
+        function setupChatListener() {
+            if (chatListener) chatListener.ref.off(chatListener.event);
+            if (!currentUser) return;
+            const chatId = [currentUser.mobile, ADMIN_MOBILE].sort().join('_');
+            const chatRef = db.ref(`chats/${chatId}/messages`);
+            
+            chatListener = { ref: chatRef, event: 'child_added' };
+
+            chatRef.orderByChild('timestamp').startAt(Date.now()).on('child_added', (snapshot) => {
+                const message = snapshot.val();
+                if (message && message.sender === ADMIN_MOBILE) {
+                    unreadChats++;
+                    updateChatBadge();
+                    playNotificationSound();
+                    showToast(`💬 New message from support!`);
+                }
+                renderChatMessages();
+            });
+            renderChatMessages(); // Initial render
+        }
+
+        function updateChatBadge() {
+             const badge = document.getElementById('chat-badge-header');
+             badge.textContent = unreadChats;
+             badge.classList.toggle('hidden', unreadChats === 0);
+        }
+
+        function formatTimestamp(ts) {
+            if (!ts) return '';
+            const date = new Date(ts);
+            const now = new Date();
+            const diff = now - date;
+
+            const seconds = diff / 1000;
+            if (seconds < 60) return 'Just now';
+
+            const minutes = seconds / 60;
+            if (minutes < 60) return `${Math.floor(minutes)}m ago`;
+
+            const hours = minutes / 60;
+            if (hours < 24 && date.getDate() === now.getDate()) {
+                return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            }
+            
+            return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+        }
+
+        async function renderChatMessages() {
+            if (!currentUser) return;
+            const chatId = [currentUser.mobile, ADMIN_MOBILE].sort().join('_');
+            const messagesSnap = await db.ref(`chats/${chatId}/messages`).orderByChild('timestamp').once('value');
+            const messages = Object.values(messagesSnap.val() || {});
+            
+            const container = document.getElementById('chat-messages');
+            if (messages.length === 0) {
+                container.innerHTML = `<p class="text-center text-gray-500">Start a conversation with our support team.</p>`;
+                return;
+            }
+            
+            container.innerHTML = messages.map(msg => {
+                const sentOrReceived = msg.sender === currentUser.mobile ? 'sent' : 'received';
+                return `
+                <div class="chat-bubble-wrapper ${sentOrReceived}">
+                    <div class="chat-bubble ${sentOrReceived}">
+                        <p>${msg.text}</p>
+                    </div>
+                    <span class="chat-timestamp">${formatTimestamp(msg.timestamp)}</span>
+                </div>
+            `}).join('');
+            container.scrollTop = container.scrollHeight;
+        }
+
+        document.getElementById('chat-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            if (!currentUser) return;
+            const input = document.getElementById('chat-input');
+            const text = input.value.trim();
+            if (!text) return;
+            
+            const chatId = [currentUser.mobile, ADMIN_MOBILE].sort().join('_');
+            const messagesRef = db.ref(`chats/${chatId}/messages`);
+            try {
+                await messagesRef.push({
+                    text: text,
+                    sender: currentUser.mobile,
+                    timestamp: firebase.database.ServerValue.TIMESTAMP
+                });
+                input.value = '';
+                renderChatMessages();
+            } catch (err) {
+                showToast("Failed to send message.");
+                console.error(err);
+            }
+        });
+        
+        // --- CART & ORDER LOGIC ---
+        function saveCart() {
+            localStorage.setItem('navroseCart', JSON.stringify(cart));
+            updateCartBadge();
+        }
+
+        function updateCartBadge() {
+            const badge = document.getElementById('cart-badge');
+            if (cart.length > 0) {
+                badge.textContent = cart.length;
+                badge.classList.remove('hidden');
+            } else {
+                badge.classList.add('hidden');
+            }
+        }
+
+        function addToCart(productId) {
+            if (!currentUser) { showToast("Please log in to add items to your cart."); return; }
+            const product = allProducts.find(p => p.id === productId);
+            if (!product) return;
+
+            if (product.sellerMobile === currentUser.mobile) {
+                showToast("You cannot add your own item to your cart.");
+                return;
+            }
+
+            const isRented = allTransactions.some(t => t.productId === productId && t.type === 'rent' && t.status === 'rented_out');
+            if (isRented) {
+                showToast("This item is currently rented out.");
+                return;
+            }
+            if (product.stock !== undefined && product.stock <= 0) {
+                showToast("This item is out of stock.");
+                return;
+            }
+            
+            if (cart.find(item => item.id === productId)) { showToast(`${product.title} is already in your cart.`); return; }
+            
+            if (product.listingType === 'both') {
+                const modalContainer = document.getElementById('modal-container');
+                modalContent.innerHTML = `
+                    <div class="p-6">
+                        <h3 class="font-bold text-lg">Choose option for ${product.title}</h3>
+                        <div class="flex gap-4 mt-4">
+                            <button class="flex-1 btn bg-purple-800 text-white" onclick="addItemToCart('${product.id}', 'sale')">Buy (₹${product.price})</button>
+                            <button class="flex-1 btn bg-fuchsia-600 text-white" onclick="showRentalModal('${product.id}')">Rent (₹${product.rentPrice}/day)</button>
+                        </div>
+                    </div>`;
+                modalContainer.classList.remove('hidden');
+            } else if (product.listingType === 'rent') {
+                showRentalModal(productId);
+            } else {
+                addItemToCart(product.id, product.listingType);
+            }
+        }
+        window.addItemToCart = (productId, type) => {
+            const product = allProducts.find(p => p.id === productId);
+            const cartItem = { ...product, cartItemType: type, quantity: 1 };
+            cart.push(cartItem);
+            saveCart();
+            showToast(`${product.title} added to cart!`);
+            document.getElementById('modal-container').classList.add('hidden');
+        };
+
+        function renderCart() {
+            if (cart.length === 0) {
+                tabContent.innerHTML = `<div class="p-8 text-center"><p class="text-gray-600">Your cart is empty.</p></div>`;
+                return;
+            }
+            
+            tabContent.innerHTML = `
+                <div class="p-4">
+                    <h2 class="text-2xl font-bold text-slate-800 mb-4">My Cart</h2>
+                    <div id="cart-items-list" class="space-y-3 mb-4"></div>
+                     <div class="p-4 bg-white rounded-lg shadow-sm space-y-2">
+                        <div id="promo-area">
+                            <label for="promo-code-input" class="text-sm font-medium">Promo Code</label>
+                            <div class="flex gap-2 mt-1">
+                                <input type="text" id="promo-code-input" class="w-full border rounded-md px-3 py-1" placeholder="Enter code" style="color: var(--color-text-dark);">
+                                <button id="apply-promo-btn" class="bg-gray-600 text-white font-semibold px-4 rounded-md text-sm">Apply</button>
+                            </div>
+                        </div>
+                        <div id="applied-promo-area" class="hidden"></div>
+                    </div>
+                    <div class="p-4 bg-white rounded-lg shadow-sm mt-4">
+                        <div class="space-y-1">
+                            <div class="flex justify-between"><span>Subtotal</span><span id="cart-subtotal">₹0.00</span></div>
+                            <div id="cart-discount-row" class="flex justify-between text-red-600 hidden"><span>Discount</span><span id="cart-discount">- ₹0.00</span></div>
+                            <div class="flex justify-between font-bold text-lg text-gray-800 border-t pt-2 mt-1">
+                                <span>Grand Total</span>
+                                <span id="cart-grand-total">₹0.00</span>
+                            </div>
+                        </div>
+                        <button onclick="placeOrder()" class="w-full mt-4 bg-green-600 text-white font-bold py-3 rounded-lg">Proceed to Checkout</button>
+                    </div>
+                </div>
+            `;
+             document.getElementById('apply-promo-btn').addEventListener('click', applyPromoCode);
+             updateCartTotals();
+        }
+
+        window.removeFromCart = (index) => {
+            cart.splice(index, 1);
+            saveCart();
+            appliedPromo = null; // Reset promo on cart change
+            renderCart();
+        }
+
+        async function placeOrder() {
+            if (cart.length === 0) return;
+
+            const hasRental = cart.some(item => item.cartItemType === 'rent');
+            if (hasRental) {
+                showRentalTermsModal();
+            } else {
+                await proceedWithOrder();
+            }
+        }
+        
+        function showRentalTermsModal() {
+            const modalContainer = document.getElementById('modal-container');
+            const modalContent = document.getElementById('modal-content');
+
+            modalContent.innerHTML = `
+                <div class="p-6 text-gray-800">
+                    <h3 class="text-xl font-bold mb-4">Rental Agreement</h3>
+                    <p class="text-sm text-gray-600 mb-4">By proceeding with this rental, you agree to the following terms:</p>
+                    <ul class="list-disc list-inside text-sm text-gray-600 space-y-2 mb-6">
+                        <li>The item must be returned by the due date.</li>
+                        <li>Late returns may incur additional charges.</li>
+                        <li>If the garment is damaged, charges will be deducted from your security deposit.</li>
+                        <li>The security deposit will be returned after the item is inspected upon its return.</li>
+                    </ul>
+                    <div class="flex items-center mb-6">
+                        <input type="checkbox" id="rental-terms-checkbox" class="h-4 w-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500">
+                        <label for="rental-terms-checkbox" class="ml-2 block text-sm text-gray-900">I have read and agree to the rental terms.</label>
+                    </div>
+                    <div class="flex gap-4">
+                        <button onclick="document.getElementById('modal-container').classList.add('hidden')" class="w-full bg-gray-200 text-gray-800 font-bold py-2 px-6 rounded-lg">Cancel</button>
+                        <button id="confirm-rental-order-btn" class="w-full bg-green-600 text-white font-bold py-2 px-6 rounded-lg opacity-50 cursor-not-allowed" disabled>Confirm Order</button>
+                    </div>
+                </div>
+            `;
+            modalContainer.classList.remove('hidden');
+
+            const checkbox = document.getElementById('rental-terms-checkbox');
+            const confirmBtn = document.getElementById('confirm-rental-order-btn');
+
+            checkbox.addEventListener('change', () => {
+                if (checkbox.checked) {
+                    confirmBtn.disabled = false;
+                    confirmBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                } else {
+                    confirmBtn.disabled = true;
+                    confirmBtn.classList.add('opacity-50', 'cursor-not-allowed');
+                }
+            });
+
+            confirmBtn.addEventListener('click', async () => {
+                if (!checkbox.checked) return; // Final check
+                document.getElementById('modal-container').classList.add('hidden');
+                await proceedWithOrder();
+            });
+        }
+
+        async function proceedWithOrder() {
+            for (const product of cart) {
+                if (product.cartItemType === 'sale' && product.stock !== undefined && product.stock < product.quantity) {
+                    showToast(`Not enough stock for ${product.title}. Please adjust your cart.`);
+                    return;
+                }
+            }
+            
+            const subtotal = cart.reduce((sum, p) => (p.cartItemType === 'rent' ? sum + p.rentalTotal + (p.securityDeposit || 0) : sum + ((parseFloat(p.price) || 0) * (p.quantity || 1))), 0);
+            const discountableSubtotal = cart.reduce((sum, p) => (p.cartItemType === 'rent' ? sum + p.rentalTotal : sum + ((parseFloat(p.price) || 0) * (p.quantity || 1))), 0);
+            let totalDiscount = 0; if (appliedPromo) { if (appliedPromo.discountType === 'percentage') { totalDiscount = discountableSubtotal * (appliedPromo.discountValue / 100); } else { totalDiscount = appliedPromo.discountValue; } totalDiscount = Math.min(totalDiscount, discountableSubtotal); }
+            for (const product of cart) {
+                const itemSubtotal = product.cartItemType === 'rent' ? product.rentalTotal + (product.securityDeposit || 0) : (parseFloat(product.price) || 0) * (product.quantity || 1);
+                const itemDiscountableAmount = product.cartItemType === 'rent' ? product.rentalTotal : itemSubtotal;
+                const proportionalDiscount = discountableSubtotal > 0 ? (itemDiscountableAmount / discountableSubtotal) * totalDiscount : 0;
+                const finalItemPrice = itemSubtotal - proportionalDiscount;
+                const saleComm = product.saleCommissionPercentage ?? marketplaceSettings.defaultSaleCommission ?? 10;
+                const rentComm = product.rentCommissionPercentage ?? marketplaceSettings.defaultRentCommission ?? 15;
+                let commission = 0; if (product.cartItemType === 'sale') { const discountedSalePrice = itemDiscountableAmount - proportionalDiscount; commission = discountedSalePrice * (saleComm / 100); } else if (product.cartItemType === 'rent') { const discountedRentPart = itemDiscountableAmount - proportionalDiscount; commission = discountedRentPart * (rentComm / 100); }
+                const transaction = { id: db.ref('transactions').push().key, productId: product.id, buyerMobile: currentUser.mobile, sellerMobile: product.sellerMobile, amountPaid: finalItemPrice, promoCode: appliedPromo ? appliedPromo.code : null, discountApplied: proportionalDiscount, commission: commission, timestamp: firebase.database.ServerValue.TIMESTAMP, type: product.cartItemType, quantity: product.quantity || null, };
+                if (product.cartItemType === 'rent') { transaction.rentalDays = product.rentalDays; transaction.rentalTotal = product.rentalTotal; transaction.securityDeposit = product.securityDeposit || 0; transaction.status = 'rented_out'; transaction.depositStatus = 'held'; } else { transaction.status = 'pending_handover'; }
+                await db.ref('transactions/' + transaction.id).set(transaction);
+                if (product.cartItemType === 'sale') { await db.ref(`marketplaceProducts/${product.id}`).update({ stock: firebase.database.ServerValue.increment(-(product.quantity || 1)) }); }
+            }
+            cart = []; appliedPromo = null; saveCart(); 
+            switchTab('my-orders');
+            showOrderConfirmation();
+        }
+
+        function renderMyMarketplaceLedger() {
+            const myTransactions = allTransactions.filter(t => t.buyerMobile === currentUser.mobile || t.sellerMobile === currentUser.mobile);
+            
+            if (myTransactions.length === 0) {
+                return `<div class="bg-white p-6 rounded-2xl shadow-lg"><h3 class="text-2xl font-bold text-slate-800 mb-2">My Marketplace Ledger</h3><p class="text-gray-500">You have no marketplace transactions yet.</p></div>`;
+            }
+            
+            let ledgerItems = [];
+
+            myTransactions.forEach(t => {
+                const product = allProducts.find(p => p.id === t.productId) || { title: 'Unknown' };
+                const txDate = new Date(t.timestamp);
+                
+                if (t.buyerMobile === currentUser.mobile) { // Money out
+                    if (t.type === 'sale') {
+                        ledgerItems.push({ date: txDate, description: `Purchased '${product.title}'`, debit: t.amountPaid || 0, credit: 0 });
+                    } else if (t.type === 'rent') {
+                        if (t.rentalTotal > 0) ledgerItems.push({ date: txDate, description: `Rent paid for '${product.title}'`, debit: t.rentalTotal || 0, credit: 0 });
+                        if (t.securityDeposit > 0) ledgerItems.push({ date: txDate, description: `Security deposit for '${product.title}'`, debit: t.securityDeposit || 0, credit: 0, isDeposit: true });
+                        if (t.depositStatus === 'returned' && t.securityDeposit > 0) {
+                            ledgerItems.push({ date: t.depositReturnDate ? new Date(t.depositReturnDate) : txDate, description: `Deposit returned for '${product.title}'`, debit: 0, credit: t.securityDeposit || 0, isDeposit: true });
+                        }
+                    }
+                }
+                
+                if (t.sellerMobile === currentUser.mobile) { // Money in
+                    const commission = t.commission || 0;
+                    if (t.type === 'sale') {
+                        const netReceived = (t.amountPaid || 0) + (t.discountApplied || 0) - commission;
+                        if (netReceived > 0) ledgerItems.push({ date: txDate, description: `Sale of '${product.title}'`, debit: 0, credit: netReceived });
+                    } else if (t.type === 'rent') {
+                        const netRentReceived = (t.rentalTotal || 0) - commission;
+                        if (netRentReceived > 0) ledgerItems.push({ date: txDate, description: `Rent income from '${product.title}'`, debit: 0, credit: netRentReceived });
+                    }
+                }
+            });
+
+            ledgerItems.sort((a, b) => a.date - b.date);
+
+            let runningBalance = 0;
+            let totalDebit = 0;
+            let totalCredit = 0;
+            
+            const rows = ledgerItems.map(item => {
+                runningBalance += item.credit - item.debit;
+                totalDebit += item.debit;
+                totalCredit += item.credit;
+                return `
+                    <tr class="border-b ${item.isDeposit ? 'bg-slate-50 text-slate-600' : ''}">
+                        <td class="p-2 whitespace-nowrap">${item.date.toLocaleDateString()}</td>
+                        <td class="p-2">${item.description}</td>
+                        <td class="p-2 text-right font-mono text-red-600">${item.debit > 0 ? `₹${item.debit.toFixed(2)}` : ''}</td>
+                        <td class="p-2 text-right font-mono text-green-600">${item.credit > 0 ? `₹${item.credit.toFixed(2)}` : ''}</td>
+                        <td class="p-2 text-right font-mono">${runningBalance.toFixed(2)}</td>
+                    </tr>
+                `;
+            }).join('');
+
+            const netPosition = totalCredit - totalDebit;
+
+            return `
+                <div class="bg-white p-6 rounded-2xl shadow-lg">
+                    <h3 class="text-2xl font-bold text-slate-800 mb-4">My Marketplace Ledger</h3>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+                        <div class="bg-green-50 border border-green-200 p-4 rounded-xl text-center">
+                            <p class="text-sm font-semibold text-green-700">Total Received (Credit)</p>
+                            <p class="text-2xl font-extrabold text-green-800 mt-1">₹${totalCredit.toFixed(2)}</p>
+                        </div>
+                         <div class="bg-red-50 border border-red-200 p-4 rounded-xl text-center">
+                            <p class="text-sm font-semibold text-red-700">Total Spent (Debit)</p>
+                            <p class="text-2xl font-extrabold text-red-800 mt-1">₹${totalDebit.toFixed(2)}</p>
+                        </div>
+                         <div class="bg-blue-50 border border-blue-200 p-4 rounded-xl text-center">
+                            <p class="text-sm font-semibold text-blue-700">Net Position</p>
+                            <p class="text-2xl font-extrabold ${netPosition >= 0 ? 'text-blue-800' : 'text-red-800'} mt-1">₹${netPosition.toFixed(2)}</p>
+                        </div>
+                    </div>
+                    <div class="overflow-x-auto rounded-lg border">
+                        <table class="w-full min-w-max text-sm">
+                            <thead class="bg-gray-100">
+                                <tr class="border-b-2">
+                                    <th class="p-3 text-left font-semibold">Date</th>
+                                    <th class="p-3 text-left font-semibold">Particulars</th>
+                                    <th class="p-3 text-right font-semibold">Debit (Dr)</th>
+                                    <th class="p-3 text-right font-semibold">Credit (Cr)</th>
+                                    <th class="p-3 text-right font-semibold">Balance</th>
+                                </tr>
+                            </thead>
+                            <tbody>${rows}</tbody>
+                            <tfoot class="font-bold bg-gray-200">
+                                <tr>
+                                    <td colspan="2" class="p-3 text-right">Grand Total</td>
+                                    <td class="p-3 text-right font-mono text-red-700">₹${totalDebit.toFixed(2)}</td>
+                                    <td class="p-3 text-right font-mono text-green-700">₹${totalCredit.toFixed(2)}</td>
+                                    <td class="p-3 text-right font-mono ${netPosition >= 0 ? 'text-green-700' : 'text-red-700'}">₹${netPosition.toFixed(2)}</td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+            `;
+        }
+        
+        function renderProfile() {
+            const hasTransactions = allTransactions.some(t => t.sellerMobile === currentUser.mobile || t.buyerMobile === currentUser.mobile);
+
+            tabContent.innerHTML = `
+            <div class="p-4 pb-24 text-gray-800 space-y-6">
+                <div class="bg-white p-6 rounded-2xl shadow-lg">
+                    <h2 class="text-3xl font-bold text-slate-800">My Profile</h2>
+                    <p class="mt-2 text-lg"><strong>Name:</strong> ${currentUser.name}</p>
+                    <p class="text-lg"><strong>Mobile:</strong> ${currentUser.mobile}</p>
+                    <button id="profile-logout-btn" class="mt-4 w-full md:w-auto bg-red-500 text-white font-bold py-2 px-6 rounded-lg hover:bg-red-600 transition-colors">Logout</button>
+                </div>
+
+                ${hasTransactions ? `<div id="my-ledger-container"></div>` : ''}
+
+                <div id="my-listings-container" class="mb-6"></div>
+                <div id="list-item-container"></div>
+            </div>`;
+            
+            document.getElementById('profile-logout-btn').addEventListener('click', performLogout);
+            
+            if (hasTransactions) {
+                document.getElementById('my-ledger-container').innerHTML = renderMyMarketplaceLedger();
+            }
+
+            renderMyListings();
+            renderListItemForm();
+        }
+
+        function renderListItemForm() {
+            const container = document.getElementById('list-item-container');
+            container.innerHTML = `
+            <h2 class="text-2xl font-bold text-slate-800 mb-4 mt-8 pt-8 border-t">List a New Item</h2>
+            <form id="list-item-form" class="bg-white p-6 rounded-lg shadow-md space-y-4" novalidate>
+                 <div class="bg-blue-50 border-l-4 border-blue-400 text-blue-800 p-4 rounded-md mb-4" role="alert">
+                    <p class="font-bold">Image Upload Instructions</p>
+                    <p class="text-sm">After submitting this form, please send the product photo via WhatsApp to the admin (${ADMIN_WHATSAPP_NUMBER}). The image will be added to your listing shortly.</p>
+                 </div>
+                 <div>
+                    <label class="block text-sm font-medium text-gray-700">Listing Type</label>
+                    <div class="mt-2 flex gap-4">
+                       <label class="flex items-center"><input type="radio" name="listingType" value="sale" class="mr-2" checked> Sell</label>
+                       <label class="flex items-center"><input type="radio" name="listingType" value="rent" class="mr-2"> Rent</label>
+                       <label class="flex items-center"><input type="radio" name="listingType" value="both" class="mr-2"> Both</label>
+                    </div>
+                </div>
+                <div><label for="title" class="block text-sm font-medium">Title</label><input type="text" id="title" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2" required></div>
+                <div><label for="description" class="block text-sm font-medium">Description</label><textarea id="description" rows="3" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2" required></textarea></div>
+                <div id="sale-fields" class="pt-4 border-t"><div><label for="price" class="block text-sm font-medium">Sale Price (₹)</label><input type="number" id="price" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"></div></div>
+                <div id="rent-fields" class="hidden pt-4 border-t space-y-4"><div><label for="rentPrice" class="block text-sm font-medium">Rent Price per day (₹)</label><input type="number" id="rentPrice" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"></div><div><label for="securityDeposit" class="block text-sm font-medium">Security Deposit (₹)</label><input type="number" id="securityDeposit" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"></div></div>
+                <button type="submit" id="list-item-submit-btn" class="w-full bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 font-semibold">List Item for Approval</button>
+            </form>
+            `;
+            
+            const form = document.getElementById('list-item-form');
+            form.querySelectorAll('input[name="listingType"]').forEach(radio => {
+                radio.addEventListener('change', (e) => {
+                    const type = e.target.value;
+                    document.getElementById('sale-fields').classList.toggle('hidden', type === 'rent');
+                    document.getElementById('rent-fields').classList.toggle('hidden', type === 'sale');
+                });
+            });
+
+            form.addEventListener('submit', handleListSubmit);
+        }
+
+        function showListingConfirmation() {
+            const modalContainer = document.getElementById('modal-container');
+            const modalContent = document.getElementById('modal-content');
+            modalContent.innerHTML = `
+                <div class="p-6 text-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 mx-auto text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <h3 class="text-xl font-bold mt-4">Submission Successful!</h3>
+                    <p class="text-gray-600 mt-2">Your item is now pending approval. Please remember to send the product photo to the admin via WhatsApp.</p>
+                    <p class="text-gray-600 mt-1">Your listing will go live once it's approved.</p>
+                    <button onclick="document.getElementById('modal-container').classList.add('hidden')" class="mt-6 bg-purple-800 text-white font-semibold py-2 px-8 rounded-lg">OK</button>
+                </div>
+            `;
+            modalContainer.classList.remove('hidden');
+        }
+
+        function showOrderConfirmation() {
+            const modalContainer = document.getElementById('modal-container');
+            const modalContent = document.getElementById('modal-content');
+
+            modalContent.innerHTML = `
+                <div class="text-center p-8">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="mx-auto h-16 w-16 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <h3 class="mt-4 text-xl font-bold text-slate-800">Thank You!</h3>
+                    <p class="mt-2 text-gray-600">Your order has been placed successfully. Please pick it up from the Navrose shop.</p>
+                    <p class="mt-1 text-gray-600">For any questions, contact us at <a href="tel:7696272780" class="text-purple-800 font-semibold">7696272780</a>.</p>
+                    <button onclick="document.getElementById('modal-container').classList.add('hidden')" class="mt-6 bg-purple-800 text-white font-semibold py-2 px-8 rounded-lg">Close</button>
+                </div>
+            `;
+            modalContainer.classList.remove('hidden');
+        }
+
+        function handleListSubmit(e) {
+            e.preventDefault();
+            const form = e.target;
+            const submitBtn = document.getElementById('list-item-submit-btn');
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Submitting...';
+
+            const resetSubmitButton = () => {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'List Item for Approval';
+            };
+
+            const title = form.querySelector('#title').value.trim();
+            const description = form.querySelector('#description').value.trim();
+            if (!title || !description) {
+                showToast("Please fill out the title and description.");
+                resetSubmitButton();
+                return;
+            }
+
+            const listingType = form.querySelector('input[name="listingType"]:checked').value;
+
+            const newProduct = {
+                id: Date.now().toString(),
+                sellerMobile: currentUser.mobile,
+                sellerName: currentUser.name,
+                title: title,
+                description: description,
+                listingType: listingType,
+                status: 'pending_approval',
+                listedDate: new Date().toISOString(),
+                imageUrl: '', // Admin will add this later
+                price: null, stock: 1, rentPrice: null, securityDeposit: null
+            };
+
+            if (listingType === 'sale' || listingType === 'both') {
+                const priceValue = form.querySelector('#price').value;
+                if (!priceValue || isNaN(parseFloat(priceValue)) || parseFloat(priceValue) <= 0) {
+                    showToast("Please provide a valid, positive sale price.");
+                    resetSubmitButton();
+                    return;
+                }
+                newProduct.price = parseFloat(priceValue);
+            }
+            
+            if (listingType === 'rent' || listingType === 'both') {
+                const rentPriceValue = form.querySelector('#rentPrice').value;
+                if (!rentPriceValue || isNaN(parseFloat(rentPriceValue)) || parseFloat(rentPriceValue) <= 0) {
+                    showToast("Please provide a valid, positive rent price.");
+                    resetSubmitButton();
+                    return;
+                }
+                newProduct.rentPrice = parseFloat(rentPriceValue);
+                newProduct.securityDeposit = parseFloat(form.querySelector('#securityDeposit').value) || 0;
+            }
+
+            db.ref('marketplaceProducts/' + newProduct.id).set(newProduct).then(() => {
+                showListingConfirmation();
+                renderProfile(); // This re-renders and form is reset
+            }).catch((error) => {
+                showToast("Error listing item. Please try again.");
+                console.error("Error saving product:", error);
+                resetSubmitButton();
+            });
+        }
+        
+        // --- ALL NEW/MERGED FUNCTIONS ---
+
+        function showRentalModal(productId) { const product = allProducts.find(p => p.id === productId); if (!product) return; const modalContainer = document.getElementById('modal-container'); const modalContent = document.getElementById('modal-content'); let rentalDays = 1; const rentPrice = parseFloat(product.rentPrice) || 0; const securityDeposit = parseFloat(product.securityDeposit) || 0; const updateTotal = () => { const totalRent = rentPrice * rentalDays; const grandTotal = totalRent + securityDeposit; document.getElementById('rental-total-rent').textContent = `₹${totalRent.toFixed(2)}`; document.getElementById('rental-grand-total').textContent = `₹${grandTotal.toFixed(2)}`; }; modalContent.innerHTML = `<div class="p-6"><h3 class="font-bold text-lg mb-4">Rent: ${product.title}</h3> <div class="my-4 flex items-center justify-center gap-4"><label class="font-semibold">Duration:</label><div class="flex items-center gap-2"><button id="decrement-days" class="bg-gray-200 w-8 h-8 rounded-full font-bold text-lg">-</button><input type="number" id="rental-days" value="1" min="1" class="w-16 text-center border rounded-md p-2" readonly><button id="increment-days" class="bg-gray-200 w-8 h-8 rounded-full font-bold text-lg">+</button></div></div> <div class="text-right space-y-1 p-4 bg-gray-50 rounded-lg"><p>Rental Total: <span id="rental-total-rent" class="font-semibold"></span></p><p>Security Deposit: <span class="font-semibold">₹${securityDeposit.toFixed(2)}</span></p><p class="font-bold text-xl border-t pt-2 mt-2">Grand Total: <span id="rental-grand-total"></span></p></div> <button id="confirm-rent-btn" class="w-full mt-4 bg-green-600 text-white font-bold py-3 rounded-lg">Confirm & Add</button></div>`; modalContainer.classList.remove('hidden'); const daysInput = document.getElementById('rental-days'); document.getElementById('decrement-days').onclick = () => { if(rentalDays > 1) { rentalDays--; daysInput.value = rentalDays; updateTotal(); }}; document.getElementById('increment-days').onclick = () => { rentalDays++; daysInput.value = rentalDays; updateTotal();}; document.getElementById('confirm-rent-btn').onclick = () => { const totalRent = rentPrice * rentalDays; const cartItem = { ...product, cartItemType: 'rent', rentalDays: rentalDays, rentalTotal: totalRent, price: totalRent + securityDeposit, securityDeposit: securityDeposit }; cart.push(cartItem); saveCart(); showToast(`${product.title} added for ${rentalDays} day(s).`); modalContainer.classList.add('hidden'); }; updateTotal(); }
+        function updateCartTotals() { /* ... identical to old client ... */ const itemsListDiv = document.getElementById('cart-items-list'); const subtotalEl = document.getElementById('cart-subtotal'); const discountRowEl = document.getElementById('cart-discount-row'); const discountEl = document.getElementById('cart-discount'); const grandTotalEl = document.getElementById('cart-grand-total'); let subtotal = cart.reduce((sum, p) => (p.cartItemType === 'rent' ? sum + p.rentalTotal + (p.securityDeposit || 0) : sum + ((parseFloat(p.price) || 0) * (p.quantity || 1))), 0); let discountableSubtotal = cart.reduce((sum, p) => (p.cartItemType === 'rent' ? sum + p.rentalTotal : sum + ((parseFloat(p.price) || 0) * (p.quantity || 1))), 0); let discount = 0; if (appliedPromo) { if (appliedPromo.discountType === 'percentage') { discount = discountableSubtotal * (appliedPromo.discountValue / 100); } else { discount = appliedPromo.discountValue; } discount = Math.min(discount, discountableSubtotal); } itemsListDiv.innerHTML = cart.map((p, index) => { let itemHTML = ''; const itemSubtotal = p.cartItemType === 'rent' ? p.rentalTotal + (p.securityDeposit || 0) : (parseFloat(p.price) || 0) * (p.quantity || 1); if (p.cartItemType === 'rent') { itemHTML = `<div><p class="font-semibold">${p.title} (Rent)</p><p class="text-sm text-gray-600">${p.rentalDays} day(s) @ ₹${p.rentPrice}/day + ₹${(p.securityDeposit || 0).toFixed(2)} deposit</p></div>`; } else { itemHTML = `<div><p class="font-semibold">${p.title} (Sale)</p><p class="text-sm text-gray-600">${p.quantity || 1} x ₹${p.price.toFixed(2)}</p></div>`; } return `<div class="flex justify-between items-center border-b pb-2">${itemHTML}<button onclick="removeFromCart(${index})" class="text-red-500 text-xs font-semibold">Remove</button></div>`; }).join(''); subtotalEl.textContent = `₹${subtotal.toFixed(2)}`; discountRowEl.classList.toggle('hidden', discount <= 0); discountEl.textContent = `- ₹${discount.toFixed(2)}`; grandTotalEl.textContent = `₹${(subtotal - discount).toFixed(2)}`; }
+        async function applyPromoCode() { /* ... identical to old client ... */ const input = document.getElementById('promo-code-input'); const code = input.value.trim().toUpperCase(); if (!code) return; const promoCodes = marketplaceSettings.promoCodes || {}; const promo = Object.values(promoCodes).find(p => p.code === code); const discountableSubtotal = cart.reduce((sum, p) => (p.cartItemType === 'rent' ? sum + p.rentalTotal : sum + ((parseFloat(p.price) || 0) * (p.quantity || 1))), 0); if (!promo || !promo.isActive) { showToast("Invalid or expired promo code."); appliedPromo = null; } else if (promo.minOrderValue && discountableSubtotal < promo.minOrderValue) { showToast(`This code requires a minimum order of ₹${promo.minOrderValue}.`); appliedPromo = null; } else { appliedPromo = promo; showToast(`Promo code "${promo.code}" applied!`); const promoArea = document.getElementById('promo-area'); const appliedPromoArea = document.getElementById('applied-promo-area'); promoArea.classList.add('hidden'); appliedPromoArea.classList.remove('hidden'); appliedPromoArea.innerHTML = `<div class="flex justify-between items-center bg-green-50 text-green-700 p-2 rounded-md"><p class="text-sm font-semibold">Code Applied: <strong>${promo.code}</strong></p><button id="remove-promo-btn" class="text-xs font-bold">&times; Remove</button></div>`; document.getElementById('remove-promo-btn').addEventListener('click', () => { appliedPromo = null; promoArea.classList.remove('hidden'); appliedPromoArea.classList.add('hidden'); input.value = ''; updateCartTotals(); showToast("Promo code removed."); }); } updateCartTotals(); }
+        function renderMyActiveRentals() { /* ... identical to old client, with minor style tweaks ... */ const rentalSection = document.getElementById('active-rentals-section'); if (!currentUser) return; const myRentals = allTransactions.filter(t => t.buyerMobile === currentUser.mobile && t.type === 'rent' && t.status === 'rented_out'); if (myRentals.length === 0) { rentalSection.innerHTML = ''; if (rentalCountdownInterval) clearInterval(rentalCountdownInterval); return; } const rentalCards = myRentals.map(t => { if (t.rentalHandoverTimestamp) { const startDate = new Date(t.rentalHandoverTimestamp); const dueDate = new Date(startDate); dueDate.setDate(startDate.getDate() + t.rentalDays); return `<div class="bg-white p-4 rounded-lg shadow-md border-l-4 border-amber-500 mb-2"><p class="font-bold">Rented: ${allProducts.find(p => p.id === t.productId)?.title || 'Item'}</p><p class="text-sm">Due Date: ${dueDate.toLocaleDateString()}</p><div class="text-lg font-bold mt-1" data-due-date="${dueDate.toISOString()}"></div></div>`; } else { return `<div class="bg-white p-4 rounded-lg shadow-md border-l-4 border-blue-500 mb-2"><p class="font-bold">Rented: ${allProducts.find(p => p.id === t.productId)?.title || 'Item'}</p><p class="text-md font-bold text-blue-600 mt-2">Awaiting Pickup from Shop</p></div>`; } }).join(''); rentalSection.innerHTML = `<h2 class="text-xl font-bold mb-3 text-gray-800">My Active Rentals</h2>${rentalCards}`; updateCountdownTimers(); if (rentalCountdownInterval) clearInterval(rentalCountdownInterval); rentalCountdownInterval = setInterval(updateCountdownTimers, 1000); }
+        function updateCountdownTimers() { /* ... identical to old client ... */ document.querySelectorAll('[data-due-date]').forEach(el => { const dueDate = new Date(el.dataset.dueDate); const now = new Date(); const diff = dueDate - now; if (diff < 0) { el.innerHTML = `<span class="text-red-600">Overdue by ${formatDuration(Math.abs(diff))}</span>`; } else { el.innerHTML = `<span class="text-green-600">${formatDuration(diff)} remaining</span>`; } }); }
+        function formatDuration(ms) { /* ... identical to old client ... */ let seconds = Math.floor(ms / 1000); let minutes = Math.floor(seconds / 60); let hours = Math.floor(minutes / 60); const days = Math.floor(hours / 24); hours %= 24; minutes %= 60; seconds %= 60; if (days > 0) return `${days}d ${hours}h ${minutes}m`; if (hours > 0) return `${hours}h ${minutes}m ${seconds}s`; if (minutes > 0) return `${minutes}m ${seconds}s`; return `${seconds}s`; }
+        
+        function deleteMyProduct(productId) {
+            const productToDelete = allProducts.find(p => p.id === productId);
+            if (!productToDelete) {
+                showToast("Product could not be found.");
+                return;
+            }
+
+            const hasActiveTransactions = allTransactions.some(t => t.productId === productId && ['rented_out', 'pending_handover', 'dispute_raised'].includes(t.status));
+            
+            if (hasActiveTransactions) {
+                showToast("Cannot delete: This item is part of an active order.");
+                return;
+            }
+            
+            const isPending = productToDelete.status === 'pending_approval';
+            const confirmMessage = isPending 
+                ? "Are you sure you want to delete this listing request? It has not been approved yet."
+                : "Are you sure you want to permanently delete this listing? This action cannot be undone, but past transaction records will not be affected.";
+
+            if (confirm(confirmMessage)) {
+                db.ref('marketplaceProducts/' + productId).remove().then(() => {
+                    showToast("Listing deleted successfully.");
+                    // Update local state for immediate UI refresh
+                    allProducts = allProducts.filter(p => p.id !== productId);
+                    
+                    // Refresh the current view to reflect the deletion
+                    const activeTab = document.querySelector('.bottom-nav .nav-item.active')?.dataset.tab;
+                    if (activeTab === 'profile') {
+                        renderProfile();
+                    } else {
+                        renderMarketplace();
+                    }
+                }).catch((error) => {
+                    showToast("Error deleting listing. Please try again.");
+                    console.error("Error deleting product:", error);
+                });
+            }
+        }
+        
+        function openEditForm(productId) {
+            const product = allProducts.find(p => p.id === productId);
+            if (!product) return;
+
+            const modalContainer = document.getElementById('modal-container');
+            const modalContent = document.getElementById('modal-content');
+
+            modalContent.innerHTML = `
+            <form id="edit-item-form" class="p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+                <div class="flex justify-between items-start">
+                    <h3 class="text-2xl font-bold text-slate-800">Edit Listing</h3>
+                    <button type="button" onclick="document.getElementById('modal-container').classList.add('hidden')" class="text-2xl text-gray-500">&times;</button>
+                </div>
+                <div>
+                    <p class="text-sm text-gray-600 bg-gray-100 p-3 rounded-md">To change the product image, please contact the admin via WhatsApp.</p>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Listing Type</label>
+                    <div class="mt-2 flex gap-4">
+                       <label class="flex items-center"><input type="radio" name="editListingType" value="sale" class="mr-2" ${product.listingType === 'sale' ? 'checked' : ''}> Sell</label>
+                       <label class="flex items-center"><input type="radio" name="editListingType" value="rent" class="mr-2" ${product.listingType === 'rent' ? 'checked' : ''}> Rent</label>
+                       <label class="flex items-center"><input type="radio" name="editListingType" value="both" class="mr-2" ${product.listingType === 'both' ? 'checked' : ''}> Both</label>
+                    </div>
+                </div>
+                <div><label for="edit-title" class="block text-sm font-medium">Title</label><input type="text" id="edit-title" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2" value="${product.title || ''}" required></div>
+                <div><label for="edit-description" class="block text-sm font-medium">Description</label><textarea id="edit-description" rows="3" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2">${product.description || ''}</textarea></div>
+                <div id="edit-sale-fields"><label for="edit-price" class="block text-sm font-medium">Sale Price (₹)</label><input type="number" id="edit-price" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2" value="${product.price || ''}"></div>
+                <div id="edit-rent-fields" class="space-y-2"><label for="edit-rentPrice" class="block text-sm font-medium">Rent Price/day (₹)</label><input type="number" id="edit-rentPrice" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2" value="${product.rentPrice || ''}"><label for="edit-securityDeposit" class="block text-sm font-medium">Security Deposit (₹)</label><input type="number" id="edit-securityDeposit" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2" value="${product.securityDeposit || ''}"></div>
+                <button type="submit" id="edit-item-submit-btn" class="w-full bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 font-semibold">Save Changes</button>
+            </form>`;
+            modalContainer.classList.remove('hidden');
+            
+            const editForm = document.getElementById('edit-item-form');
+            const toggleEditFields = () => { const type = editForm.querySelector('input[name="editListingType"]:checked').value; document.getElementById('edit-sale-fields').style.display = (type === 'sale' || type === 'both') ? 'block' : 'none'; document.getElementById('edit-rent-fields').style.display = (type === 'rent' || type === 'both') ? 'block' : 'none'; };
+            editForm.querySelectorAll('input[name="editListingType"]').forEach(radio => radio.addEventListener('change', toggleEditFields));
+            toggleEditFields();
+            
+            editForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const submitBtn = document.getElementById('edit-item-submit-btn');
+                submitBtn.disabled = true; submitBtn.textContent = 'Saving...';
+                
+                const updates = { 
+                    ...product,
+                    title: document.getElementById('edit-title').value,
+                    description: document.getElementById('edit-description').value,
+                    listingType: editForm.querySelector('input[name="editListingType"]:checked').value,
+                    price: (editForm.querySelector('input[name="editListingType"]:checked').value !== 'rent') ? parseFloat(document.getElementById('edit-price').value) || null : null,
+                    rentPrice: (editForm.querySelector('input[name="editListingType"]:checked').value !== 'sale') ? parseFloat(document.getElementById('edit-rentPrice').value) || null : null,
+                    securityDeposit: (editForm.querySelector('input[name="editListingType"]:checked').value !== 'sale') ? parseFloat(document.getElementById('edit-securityDeposit').value) || 0 : null
+                };
+
+                if (updates.status === 'rejected') { 
+                    updates.status = 'pending_approval'; 
+                }
+
+                db.ref('marketplaceProducts/' + productId).set(updates).then(() => {
+                    showToast("Listing updated successfully.");
+                    modalContainer.classList.add('hidden');
+                    const productIndex = allProducts.findIndex(p => p.id === productId);
+                    if (productIndex !== -1) allProducts[productIndex] = updates;
+                    renderProfile(); 
+                }).catch((error) => {
+                    showToast("Error updating listing.");
+                    console.error(error);
+                }).finally(() => {
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = 'Save Changes';
+                });
+            });
+        }
+        
+        function renderMyListings() {
+            const container = document.getElementById('my-listings-container');
+            const myListings = allProducts.filter(p => p.sellerMobile === currentUser.mobile);
+            if (myListings.length === 0) { container.innerHTML = ''; return; }
+            const getGoogleDriveImageUrl = (sharingUrl) => {
+                if (!sharingUrl) return 'https://via.placeholder.com/300x200.png?text=No+Image';
+                if (sharingUrl.includes('firebasestorage')) return sharingUrl;
+                if (!sharingUrl.includes('drive.google.com')) return sharingUrl;
+                const fileIdMatch = sharingUrl.match(/file\/d\/([a-zA-Z0-9_-]+)/);
+                if (fileIdMatch && fileIdMatch[1]) return `https://drive.google.com/uc?export=view&id=${fileIdMatch[1]}`;
+                return sharingUrl;
+            };
+            const createMyListingCard = (p) => {
+                const imageUrl = getGoogleDriveImageUrl(p.imageUrl);
+                const statusText = (p.status || '').replace(/_/g, ' ');
+                let statusClass = 'bg-gray-100 text-gray-800';
+                if (p.status === 'sold') statusClass = 'bg-red-100 text-red-800';
+                else if (p.status === 'approved') statusClass = 'bg-green-100 text-green-800';
+                else if (p.status === 'pending_approval') statusClass = 'bg-yellow-100 text-yellow-800';
+                else if (p.status === 'rejected') statusClass = 'bg-slate-200 text-slate-600';
+                let priceHTML = '';
+                if (p.price) priceHTML += `<p class="font-semibold text-purple-800">Buy: ₹${p.price}</p>`;
+                if (p.rentPrice) priceHTML += `<p class="font-semibold text-fuchsia-700">Rent: ₹${p.rentPrice}/day</p>`;
+                return `
+                <div class="product-card">
+                    <div class="image-container relative">
+                        <img src="${imageUrl}" alt="${p.title}" class="w-full h-full object-cover">
+                        <span class="absolute top-2 left-2 text-xs font-semibold px-2 py-1 rounded-full capitalize ${statusClass}">${statusText}</span>
+                    </div>
+                    <div class="p-3 flex flex-col justify-between" style="min-height: 140px;">
+                        <div>
+                            <p class="font-bold truncate">${p.title}</p>
+                            <div class="text-sm mt-1">${priceHTML}</div>
+                        </div>
+                        <div class="flex gap-2 mt-3">
+                            <button onclick="openEditForm('${p.id}')" class="text-xs font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 py-1 px-3 rounded w-full text-center">Edit</button>
+                            <button onclick="deleteMyProduct('${p.id}')" class="text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 py-1 px-3 rounded w-full text-center">Delete</button>
+                        </div>
+                    </div>
+                </div>`;
+            }
+            container.innerHTML = `
+                <h2 class="text-2xl font-bold text-slate-800 mb-4">My Listings</h2>
+                <div class="grid-view-container">
+                    ${myListings.map(createMyListingCard).join('')}
+                </div>
+            `;
+        }
+        
+        // --- INITIALIZATION ---
+        document.addEventListener('DOMContentLoaded', () => {
+            try {
+                if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+                db = firebase.database();
+                storage = firebase.storage();
+            } catch(e) { console.error(e); alert("Firebase connection failed."); }
+            
+            const savedUser = localStorage.getItem('loggedInUser');
+            if (savedUser) {
+                login(JSON.parse(savedUser).mobile);
+            } else {
+                tabContent.innerHTML = '<p class="text-center text-gray-500 p-8">Please log in to see content.</p>';
+            }
+            
+            const savedCart = localStorage.getItem('navroseCart');
+            if (savedCart) {
+                cart = JSON.parse(savedCart);
+                updateCartBadge();
+            }
+
+            // Make functions globally accessible for inline onclicks
+            window.addToCart = addToCart;
+            window.renderGridView = renderGridView;
+            window.renderMarketplace = renderMarketplace;
+            window.deleteMyProduct = deleteMyProduct;
+            window.openEditForm = openEditForm;
+        });
+        
+    </script>
+
+
+<script src="./script.js"></script><script></script><script type="module" src="/index.tsx"></script>
+<script src="./script.js"></script></body></html>
