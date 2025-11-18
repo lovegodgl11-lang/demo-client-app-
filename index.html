@@ -467,7 +467,9 @@
         let unreadChats = 0;
         let voiceEnabled = true;
         let appliedPromo = null;
-        let rentalCountdownInterval = null;
+        let orderCountdownInterval = null;
+        let notifiedOrders = new Set();
+
 
         const ADMIN_MOBILE = "0000000000"; // Placeholder for Admin's mobile number for chat
         const ADMIN_WHATSAPP_NUMBER = "917696272780";
@@ -557,7 +559,7 @@
         function performLogout() {
              if (notificationListener) notificationListener.off();
              if (chatListener) chatListener.ref.off(chatListener.event);
-             if (rentalCountdownInterval) clearInterval(rentalCountdownInterval);
+             if (orderCountdownInterval) clearInterval(orderCountdownInterval);
              sellerListeners.forEach(listener => listener.ref.off(listener.event));
              
              currentUser = null;
@@ -593,6 +595,11 @@
         });
 
         function switchTab(tabId) {
+            if (orderCountdownInterval) {
+                clearInterval(orderCountdownInterval);
+                orderCountdownInterval = null;
+            }
+
             if (!currentUser && tabId !== 'marketplace') {
                  showToast("Please log in to view this section.");
                  return;
@@ -674,19 +681,32 @@
                     <h2 class="text-xl font-bold text-gray-800 px-2">My Stitching Orders</h2>
                     ${orders.sort((a,b) => new Date(b.bookingDate) - new Date(a.bookingDate)).map(o => {
                         const itemsList = o.items ? o.items.map(i => i.item).join(', ') : o.description;
-                        const pickupDate = o.items ? o.items[0]?.pickupDate : o.pickupDate;
+                        
+                        let statusHTML = `<span class="text-xs font-semibold px-2 py-1 rounded-full ${o.status === 'Completed' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}">${o.status}</span>`;
+                        let countdownHTML = '';
+
+                        if (o.status !== 'Completed' && o.estimatedCompletionTimestamp) {
+                            countdownHTML = `<div class="mt-2 p-2 bg-purple-50 rounded-md text-center">
+                                <p class="text-xs font-semibold text-purple-800">ESTIMATED TIME REMAINING</p>
+                                <div class="text-lg font-bold text-purple-900" data-order-id="${o.id}" data-order-number="${o.orderNumber}" data-due-date="${o.estimatedCompletionTimestamp}"></div>
+                            </div>`;
+                        } else if (o.status === 'Completed') {
+                           countdownHTML = `<div class="mt-2 p-2 bg-green-100 text-green-800 rounded-md text-center font-semibold text-sm">Ready for pickup!</div>`;
+                        }
+
                         return `
-                        <div class="bg-white p-4 rounded-lg shadow-sm">
+                        <div id="order-card-${o.id}" class="bg-white p-4 rounded-lg shadow-sm">
                             <div class="flex justify-between items-start">
                                 <h3 class="font-bold text-base text-slate-800">Order #${o.orderNumber}</h3>
-                                <span class="text-xs font-semibold px-2 py-1 rounded-full ${o.status === 'Completed' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}">${o.status}</span>
+                                ${statusHTML}
                             </div>
                             <p class="text-sm text-gray-600 mt-1">Items: ${itemsList}</p>
-                            <p class="text-sm text-gray-600">Pickup: ${pickupDate || 'N/A'}</p>
+                            ${countdownHTML}
                         </div>
                     `}).join('')}
                 </div>
             `;
+            initializeOrderCountdowns();
         }
 
         function renderMarketplaceTransactions() {
@@ -1632,9 +1652,43 @@
         function showRentalModal(productId) { const product = allProducts.find(p => p.id === productId); if (!product) return; const modalContainer = document.getElementById('modal-container'); const modalContent = document.getElementById('modal-content'); let rentalDays = 1; const rentPrice = parseFloat(product.rentPrice) || 0; const securityDeposit = parseFloat(product.securityDeposit) || 0; const updateTotal = () => { const totalRent = rentPrice * rentalDays; const grandTotal = totalRent + securityDeposit; document.getElementById('rental-total-rent').textContent = `₹${totalRent.toFixed(2)}`; document.getElementById('rental-grand-total').textContent = `₹${grandTotal.toFixed(2)}`; }; modalContent.innerHTML = `<div class="p-6"><h3 class="font-bold text-lg mb-4">Rent: ${product.title}</h3> <div class="my-4 flex items-center justify-center gap-4"><label class="font-semibold">Duration:</label><div class="flex items-center gap-2"><button id="decrement-days" class="bg-gray-200 w-8 h-8 rounded-full font-bold text-lg">-</button><input type="number" id="rental-days" value="1" min="1" class="w-16 text-center border rounded-md p-2" readonly><button id="increment-days" class="bg-gray-200 w-8 h-8 rounded-full font-bold text-lg">+</button></div></div> <div class="text-right space-y-1 p-4 bg-gray-50 rounded-lg"><p>Rental Total: <span id="rental-total-rent" class="font-semibold"></span></p><p>Security Deposit: <span class="font-semibold">₹${securityDeposit.toFixed(2)}</span></p><p class="font-bold text-xl border-t pt-2 mt-2">Grand Total: <span id="rental-grand-total"></span></p></div> <button id="confirm-rent-btn" class="w-full mt-4 bg-green-600 text-white font-bold py-3 rounded-lg">Confirm & Add</button></div>`; modalContainer.classList.remove('hidden'); const daysInput = document.getElementById('rental-days'); document.getElementById('decrement-days').onclick = () => { if(rentalDays > 1) { rentalDays--; daysInput.value = rentalDays; updateTotal(); }}; document.getElementById('increment-days').onclick = () => { rentalDays++; daysInput.value = rentalDays; updateTotal();}; document.getElementById('confirm-rent-btn').onclick = () => { const totalRent = rentPrice * rentalDays; const cartItem = { ...product, cartItemType: 'rent', rentalDays: rentalDays, rentalTotal: totalRent, price: totalRent + securityDeposit, securityDeposit: securityDeposit }; cart.push(cartItem); saveCart(); showToast(`${product.title} added for ${rentalDays} day(s).`); modalContainer.classList.add('hidden'); }; updateTotal(); }
         function updateCartTotals() { /* ... identical to old client ... */ const itemsListDiv = document.getElementById('cart-items-list'); const subtotalEl = document.getElementById('cart-subtotal'); const discountRowEl = document.getElementById('cart-discount-row'); const discountEl = document.getElementById('cart-discount'); const grandTotalEl = document.getElementById('cart-grand-total'); let subtotal = cart.reduce((sum, p) => (p.cartItemType === 'rent' ? sum + p.rentalTotal + (p.securityDeposit || 0) : sum + ((parseFloat(p.price) || 0) * (p.quantity || 1))), 0); let discountableSubtotal = cart.reduce((sum, p) => (p.cartItemType === 'rent' ? sum + p.rentalTotal : sum + ((parseFloat(p.price) || 0) * (p.quantity || 1))), 0); let discount = 0; if (appliedPromo) { if (appliedPromo.discountType === 'percentage') { discount = discountableSubtotal * (appliedPromo.discountValue / 100); } else { discount = appliedPromo.discountValue; } discount = Math.min(discount, discountableSubtotal); } itemsListDiv.innerHTML = cart.map((p, index) => { let itemHTML = ''; const itemSubtotal = p.cartItemType === 'rent' ? p.rentalTotal + (p.securityDeposit || 0) : (parseFloat(p.price) || 0) * (p.quantity || 1); if (p.cartItemType === 'rent') { itemHTML = `<div><p class="font-semibold">${p.title} (Rent)</p><p class="text-sm text-gray-600">${p.rentalDays} day(s) @ ₹${p.rentPrice}/day + ₹${(p.securityDeposit || 0).toFixed(2)} deposit</p></div>`; } else { itemHTML = `<div><p class="font-semibold">${p.title} (Sale)</p><p class="text-sm text-gray-600">${p.quantity || 1} x ₹${p.price.toFixed(2)}</p></div>`; } return `<div class="flex justify-between items-center border-b pb-2">${itemHTML}<button onclick="removeFromCart(${index})" class="text-red-500 text-xs font-semibold">Remove</button></div>`; }).join(''); subtotalEl.textContent = `₹${subtotal.toFixed(2)}`; discountRowEl.classList.toggle('hidden', discount <= 0); discountEl.textContent = `- ₹${discount.toFixed(2)}`; grandTotalEl.textContent = `₹${(subtotal - discount).toFixed(2)}`; }
         async function applyPromoCode() { /* ... identical to old client ... */ const input = document.getElementById('promo-code-input'); const code = input.value.trim().toUpperCase(); if (!code) return; const promoCodes = marketplaceSettings.promoCodes || {}; const promo = Object.values(promoCodes).find(p => p.code === code); const discountableSubtotal = cart.reduce((sum, p) => (p.cartItemType === 'rent' ? sum + p.rentalTotal : sum + ((parseFloat(p.price) || 0) * (p.quantity || 1))), 0); if (!promo || !promo.isActive) { showToast("Invalid or expired promo code."); appliedPromo = null; } else if (promo.minOrderValue && discountableSubtotal < promo.minOrderValue) { showToast(`This code requires a minimum order of ₹${promo.minOrderValue}.`); appliedPromo = null; } else { appliedPromo = promo; showToast(`Promo code "${promo.code}" applied!`); const promoArea = document.getElementById('promo-area'); const appliedPromoArea = document.getElementById('applied-promo-area'); promoArea.classList.add('hidden'); appliedPromoArea.classList.remove('hidden'); appliedPromoArea.innerHTML = `<div class="flex justify-between items-center bg-green-50 text-green-700 p-2 rounded-md"><p class="text-sm font-semibold">Code Applied: <strong>${promo.code}</strong></p><button id="remove-promo-btn" class="text-xs font-bold">&times; Remove</button></div>`; document.getElementById('remove-promo-btn').addEventListener('click', () => { appliedPromo = null; promoArea.classList.remove('hidden'); appliedPromoArea.classList.add('hidden'); input.value = ''; updateCartTotals(); showToast("Promo code removed."); }); } updateCartTotals(); }
-        function renderMyActiveRentals() { /* ... identical to old client, with minor style tweaks ... */ const rentalSection = document.getElementById('active-rentals-section'); if (!currentUser) return; const myRentals = allTransactions.filter(t => t.buyerMobile === currentUser.mobile && t.type === 'rent' && t.status === 'rented_out'); if (myRentals.length === 0) { rentalSection.innerHTML = ''; if (rentalCountdownInterval) clearInterval(rentalCountdownInterval); return; } const rentalCards = myRentals.map(t => { if (t.rentalHandoverTimestamp) { const startDate = new Date(t.rentalHandoverTimestamp); const dueDate = new Date(startDate); dueDate.setDate(startDate.getDate() + t.rentalDays); return `<div class="bg-white p-4 rounded-lg shadow-md border-l-4 border-amber-500 mb-2"><p class="font-bold">Rented: ${allProducts.find(p => p.id === t.productId)?.title || 'Item'}</p><p class="text-sm">Due Date: ${dueDate.toLocaleDateString()}</p><div class="text-lg font-bold mt-1" data-due-date="${dueDate.toISOString()}"></div></div>`; } else { return `<div class="bg-white p-4 rounded-lg shadow-md border-l-4 border-blue-500 mb-2"><p class="font-bold">Rented: ${allProducts.find(p => p.id === t.productId)?.title || 'Item'}</p><p class="text-md font-bold text-blue-600 mt-2">Awaiting Pickup from Shop</p></div>`; } }).join(''); rentalSection.innerHTML = `<h2 class="text-xl font-bold mb-3 text-gray-800">My Active Rentals</h2>${rentalCards}`; updateCountdownTimers(); if (rentalCountdownInterval) clearInterval(rentalCountdownInterval); rentalCountdownInterval = setInterval(updateCountdownTimers, 1000); }
-        function updateCountdownTimers() { /* ... identical to old client ... */ document.querySelectorAll('[data-due-date]').forEach(el => { const dueDate = new Date(el.dataset.dueDate); const now = new Date(); const diff = dueDate - now; if (diff < 0) { el.innerHTML = `<span class="text-red-600">Overdue by ${formatDuration(Math.abs(diff))}</span>`; } else { el.innerHTML = `<span class="text-green-600">${formatDuration(diff)} remaining</span>`; } }); }
-        function formatDuration(ms) { /* ... identical to old client ... */ let seconds = Math.floor(ms / 1000); let minutes = Math.floor(seconds / 60); let hours = Math.floor(minutes / 60); const days = Math.floor(hours / 24); hours %= 24; minutes %= 60; seconds %= 60; if (days > 0) return `${days}d ${hours}h ${minutes}m`; if (hours > 0) return `${hours}h ${minutes}m ${seconds}s`; if (minutes > 0) return `${minutes}m ${seconds}s`; return `${seconds}s`; }
+        function renderMyActiveRentals() { /* ... identical to old client, with minor style tweaks ... */ const rentalSection = document.getElementById('active-rentals-section'); if (!currentUser) return; const myRentals = allTransactions.filter(t => t.buyerMobile === currentUser.mobile && t.type === 'rent' && t.status === 'rented_out'); if (myRentals.length === 0) { rentalSection.innerHTML = ''; if (orderCountdownInterval) clearInterval(orderCountdownInterval); return; } const rentalCards = myRentals.map(t => { if (t.rentalHandoverTimestamp) { const startDate = new Date(t.rentalHandoverTimestamp); const dueDate = new Date(startDate); dueDate.setDate(startDate.getDate() + t.rentalDays); return `<div class="bg-white p-4 rounded-lg shadow-md border-l-4 border-amber-500 mb-2"><p class="font-bold">Rented: ${allProducts.find(p => p.id === t.productId)?.title || 'Item'}</p><p class="text-sm">Due Date: ${dueDate.toLocaleDateString()}</p><div class="text-lg font-bold mt-1" data-due-date="${dueDate.toISOString()}"></div></div>`; } else { return `<div class="bg-white p-4 rounded-lg shadow-md border-l-4 border-blue-500 mb-2"><p class="font-bold">Rented: ${allProducts.find(p => p.id === t.productId)?.title || 'Item'}</p><p class="text-md font-bold text-blue-600 mt-2">Awaiting Pickup from Shop</p></div>`; } }).join(''); rentalSection.innerHTML = `<h2 class="text-xl font-bold mb-3 text-gray-800">My Active Rentals</h2>${rentalCards}`; updateCountdownTimers(); if (orderCountdownInterval) clearInterval(orderCountdownInterval); orderCountdownInterval = setInterval(updateCountdownTimers, 1000); }
+        
+        function initializeOrderCountdowns() {
+            if (orderCountdownInterval) clearInterval(orderCountdownInterval);
+            orderCountdownInterval = setInterval(updateAllOrderCountdowns, 1000);
+            updateAllOrderCountdowns(); // Run once immediately
+        }
+
+        function updateAllOrderCountdowns() {
+            const countdownElements = document.querySelectorAll('[data-due-date]');
+            if (countdownElements.length === 0) {
+                clearInterval(orderCountdownInterval);
+                orderCountdownInterval = null;
+                return;
+            }
+            countdownElements.forEach(el => {
+                const dueDate = new Date(parseInt(el.dataset.dueDate));
+                const orderId = el.dataset.orderId;
+                const orderNumber = el.dataset.orderNumber;
+                const now = new Date();
+                const diff = dueDate - now;
+
+                if (diff < 0) {
+                    if (!notifiedOrders.has(orderId)) {
+                        el.parentElement.innerHTML = `<p class="font-bold text-green-700 text-lg">✅ Ready for Pickup!</p>`;
+                        const notificationText = `Your order number ${orderNumber} is now ready for pickup.`;
+                        speak(notificationText);
+                        showToast(notificationText);
+                        notifiedOrders.add(orderId);
+                    }
+                } else {
+                    el.innerHTML = formatDuration(diff);
+                }
+            });
+        }
+        
+        function formatDuration(ms) { let seconds = Math.floor(ms / 1000); let minutes = Math.floor(seconds / 60); let hours = Math.floor(minutes / 60); const days = Math.floor(hours / 24); hours %= 24; minutes %= 60; seconds %= 60; let parts = []; if(days > 0) parts.push(`${days}d`); if(hours > 0) parts.push(`${hours}h`); if(minutes > 0) parts.push(`${minutes}m`); if(parts.length < 3) parts.push(`${seconds}s`); return parts.join(' '); }
         
         function deleteMyProduct(productId) {
             const productToDelete = allProducts.find(p => p.id === productId);
