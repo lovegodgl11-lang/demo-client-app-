@@ -1,8 +1,12 @@
 <!DOCTYPE html>
-<html lang="en" class=""><head><script>window.livecodes = window.livecodes || {};</script><title>Demo client app </title><meta name="title" content="Demo client app "><meta charset="UTF-8">
+<html lang="en" class=""><head><script>window.livecodes = window.livecodes || {};</script><title>Client app update version </title><meta name="title" content="Client app update version "><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0"><link rel="stylesheet" href="./style.css"><script src="https://cdn.jsdelivr.net/npm/es-module-shims@1.10.0/dist/es-module-shims.js" async=""></script><script type="importmap">{
   "imports": {}
 }</script></head><body>
+<script>window.livecodes = window.livecodes || {};</script><title>Client app </title><meta name="title" content="Client app "><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0"><style id="__livecodes_styles__"></style><script src="https://cdn.jsdelivr.net/npm/es-module-shims@1.10.0/dist/es-module-shims.js" async=""></script>
+<script>window.livecodes = window.livecodes || {};</script><title>Demo client app </title><meta name="title" content="Demo client app "><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0"><link rel="stylesheet" href="./style.css"><script src="https://cdn.jsdelivr.net/npm/es-module-shims@1.10.0/dist/es-module-shims.js" async=""></script>
 <script>window.livecodes = window.livecodes || {};</script><title>Market place client </title><meta name="title" content="Market place client "><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"><style id="__livecodes_styles__"></style><script src="https://cdn.jsdelivr.net/npm/es-module-shims@1.10.0/dist/es-module-shims.js" async=""></script><link rel="stylesheet" href="/index.css">
 
@@ -442,10 +446,22 @@
             </form>
         </div>
     </div>
+
+    <!-- QR Scanner Modal -->
+    <div id="qr-scanner-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 hidden modal">
+        <div class="w-full max-w-md mx-auto bg-white p-6 rounded-2xl shadow-2xl text-gray-800">
+             <div class="flex justify-between items-center mb-4">
+                <h2 class="text-2xl font-bold text-slate-800">Scan to Pick Up</h2>
+                <button onclick="stopPickupScanner()" class="text-2xl text-gray-500">×</button>
+            </div>
+            <div id="qr-reader" class="w-full border-2 border-dashed rounded-lg overflow-hidden" style="min-height: 250px;"></div>
+        </div>
+    </div>
     
     <div id="toast" class="hidden fixed bottom-24 right-5 bg-gray-900 text-white py-2 px-4 rounded-lg shadow-lg z-50"></div>
     <audio id="notification-sound" src="https://freesound.org/data/previews/415/415763_6142149-lq.mp3" preload="auto"></audio>
 
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
     <script>
         const firebaseConfig = {
             apiKey: "AIzaSyC0_DQIiyaVQllFH4pxH1Dm3r2kFXXoOgc",
@@ -469,6 +485,7 @@
         let appliedPromo = null;
         let orderCountdownInterval = null;
         let notifiedOrders = new Set();
+        let html5QrCode;
 
 
         const ADMIN_MOBILE = "0000000000"; // Placeholder for Admin's mobile number for chat
@@ -494,15 +511,71 @@
         }
 
         function playNotificationSound() {
-            document.getElementById('notification-sound').play().catch(e => console.log("Audio play failed:", e));
+            const audio = document.getElementById('notification-sound');
+            if (audio) {
+                const playPromise = audio.play();
+                if (playPromise !== undefined) {
+                    playPromise.catch(error => {
+                        console.log("Audio play was prevented by the browser:", error);
+                    });
+                }
+            }
         }
 
-        function speak(text) {
+        function speak(text, lang = 'en-IN') {
             if (!voiceEnabled || !('speechSynthesis' in window)) return;
             speechSynthesis.cancel();
             const utterance = new SpeechSynthesisUtterance(text);
-            utterance.lang = 'en-IN';
+            utterance.lang = lang;
             speechSynthesis.speak(utterance);
+        }
+        
+        /**
+         * Compresses an image file using the canvas API.
+         * @param {File} file The image file to compress.
+         * @param {number} maxWidth The maximum width of the output image.
+         * @param {number} maxHeight The maximum height of the output image.
+         * @param {number} quality The quality of the output JPEG (0 to 1).
+         * @returns {Promise<string>} A promise that resolves with the compressed image as a Base64 data URL.
+         */
+        function compressImage(file, maxWidth = 1024, maxHeight = 1024, quality = 0.8) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.readAsDataURL(file);
+                reader.onload = (event) => {
+                    const img = new Image();
+                    img.src = event.target.result;
+                    img.onload = () => {
+                        const canvas = document.createElement('canvas');
+                        let width = img.width;
+                        let height = img.height;
+
+                        if (width > height) {
+                            if (width > maxWidth) {
+                                height *= maxWidth / width;
+                                width = maxWidth;
+                            }
+                        } else {
+                            if (height > maxHeight) {
+                                width *= maxHeight / height;
+                                height = maxHeight;
+                            }
+                        }
+
+                        canvas.width = width;
+                        canvas.height = height;
+
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0, width, height);
+                        
+                        // Get the data URL with JPEG compression
+                        const dataUrl = canvas.toDataURL('image/jpeg', quality);
+                        resolve(dataUrl);
+                    };
+                    img.onerror = (error) => reject(error);
+                };
+                reader.onerror = (error) => reject(error);
+            });
         }
         
         // --- AUTH ---
@@ -641,6 +714,10 @@
             }
             tabContent.innerHTML = `
                 <div class="p-4">
+                     <button id="scan-pickup-btn" class="w-full bg-indigo-600 text-white font-bold py-3 px-4 rounded-lg shadow-md hover:bg-indigo-700 flex items-center justify-center gap-2 mb-6">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v1m6 11h2m-6.5 2.5a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" /><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h.01M12 12h.01M19 12h.01M6 5h.01M12 5h.01M18 5h.01M9 21h6" /></svg>
+                        Scan to Pick Up Order
+                    </button>
                     <div id="active-rentals-section" class="mb-6"></div>
                     <div class="flex border-b mb-4">
                         <button data-subtab="stitching" class="sub-tab-btn active">Stitching Orders</button>
@@ -650,6 +727,8 @@
                 </div>
             `;
             
+            document.getElementById('scan-pickup-btn').addEventListener('click', startPickupScanner);
+
             document.querySelectorAll('.sub-tab-btn').forEach(btn => {
                 btn.addEventListener('click', (e) => {
                     document.querySelectorAll('.sub-tab-btn').forEach(b => b.classList.remove('active'));
@@ -681,17 +760,20 @@
                     <h2 class="text-xl font-bold text-gray-800 px-2">My Stitching Orders</h2>
                     ${orders.sort((a,b) => new Date(b.bookingDate) - new Date(a.bookingDate)).map(o => {
                         const itemsList = o.items ? o.items.map(i => i.item).join(', ') : o.description;
+                        const status = o.pipelineStatus || (o.status === 'Completed' ? 'handover' : 'new');
                         
-                        let statusHTML = `<span class="text-xs font-semibold px-2 py-1 rounded-full ${o.status === 'Completed' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}">${o.status}</span>`;
+                        let statusHTML = `<span class="text-xs font-semibold px-2 py-1 rounded-full capitalize ${status === 'handover' ? 'bg-green-100 text-green-800' : (status === 'ready_for_pickup' ? 'bg-blue-100 text-blue-800' : 'bg-yellow-100 text-yellow-800')}">${status.replace(/_/g, ' ')}</span>`;
                         let countdownHTML = '';
 
-                        if (o.status !== 'Completed' && o.estimatedCompletionTimestamp) {
+                        if (status !== 'handover' && o.estimatedCompletionTimestamp) {
                             countdownHTML = `<div class="mt-2 p-2 bg-purple-50 rounded-md text-center">
                                 <p class="text-xs font-semibold text-purple-800">ESTIMATED TIME REMAINING</p>
                                 <div class="text-lg font-bold text-purple-900" data-order-id="${o.id}" data-order-number="${o.orderNumber}" data-due-date="${o.estimatedCompletionTimestamp}"></div>
                             </div>`;
-                        } else if (o.status === 'Completed') {
-                           countdownHTML = `<div class="mt-2 p-2 bg-green-100 text-green-800 rounded-md text-center font-semibold text-sm">Ready for pickup!</div>`;
+                        } else if (status === 'ready_for_pickup') {
+                           countdownHTML = `<div class="mt-2 p-2 bg-blue-100 text-blue-800 rounded-md text-center font-semibold text-sm">Ready for pickup!</div>`;
+                        } else if (status === 'handover') {
+                            countdownHTML = `<div class="mt-2 p-2 bg-green-100 text-green-800 rounded-md text-center font-semibold text-sm">Order collected.</div>`;
                         }
 
                         return `
@@ -832,6 +914,24 @@
              renderProductGrid();
         }
 
+        const getProductImageUrl = (sharingUrl) => {
+            const placeholder = 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=800&q=80';
+            if (!sharingUrl) return placeholder;
+            if (sharingUrl.startsWith('data:image')) {
+                return sharingUrl;
+            }
+            if (sharingUrl.includes('drive.google.com')) {
+                const fileIdMatch = sharingUrl.match(/file\/d\/([a-zA-Z0-9_-]+)/);
+                if (fileIdMatch && fileIdMatch[1]) {
+                    return `https://drive.google.com/uc?export=view&id=${fileIdMatch[1]}`;
+                }
+            }
+            if (sharingUrl.startsWith('http')) {
+                return sharingUrl;
+            }
+            return placeholder;
+        };
+
         async function renderProductGrid() {
             const content = document.getElementById('marketplace-content');
             content.innerHTML = `<p class="text-center text-gray-800 p-4">Loading items...</p>`;
@@ -847,16 +947,9 @@
                 content.innerHTML = `<div class="text-center p-8"><p class="text-gray-600">No items in the marketplace yet.</p></div>`;
                 return;
             }
-            
-            const getGoogleDriveImageUrl = (sharingUrl) => {
-                if (!sharingUrl || !sharingUrl.includes('drive.google.com')) return sharingUrl || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=800&q=80';
-                const fileIdMatch = sharingUrl.match(/file\/d\/([a-zA-Z0-9_-]+)/);
-                if (fileIdMatch && fileIdMatch[1]) return `https://drive.google.com/uc?export=view&id=${fileIdMatch[1]}`;
-                return 'https://via.placeholder.com/300x200.png?text=Invalid+Link';
-            };
 
             const createMyListingCard = (p) => {
-                const imageUrl = getGoogleDriveImageUrl(p.imageUrl);
+                const imageUrl = getProductImageUrl(p.imageUrl);
                 const statusText = (p.status || '').replace(/_/g, ' ');
                 let statusClass = 'bg-gray-100 text-gray-800';
                 if (p.status === 'sold') statusClass = 'bg-red-100 text-red-800';
@@ -879,7 +972,7 @@
             }
 
             const createProductCard = (p, type) => {
-                const imageUrl = getGoogleDriveImageUrl(p.imageUrl);
+                const imageUrl = getProductImageUrl(p.imageUrl);
                 let priceHTML = '', typeLabel = '';
                 
                 if(type === 'sale' && p.price) {
@@ -961,15 +1054,8 @@
             
             const title = type === 'sale' ? 'All Items For Sale' : 'All Items For Rent';
 
-             const getGoogleDriveImageUrl = (sharingUrl) => {
-                if (!sharingUrl || !sharingUrl.includes('drive.google.com')) return sharingUrl || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=800&q=80';
-                const fileIdMatch = sharingUrl.match(/file\/d\/([a-zA-Z0-9_-]+)/);
-                if (fileIdMatch && fileIdMatch[1]) return `https://drive.google.com/uc?export=view&id=${fileIdMatch[1]}`;
-                return 'https://via.placeholder.com/300x200.png?text=Invalid+Link';
-            };
-
             const createGridCard = (p) => {
-                 const imageUrl = getGoogleDriveImageUrl(p.imageUrl);
+                 const imageUrl = getProductImageUrl(p.imageUrl);
                 let priceHTML = '', typeLabel = '';
                 
                 if(type === 'sale' && p.price) {
@@ -1361,7 +1447,7 @@
             const discountableSubtotal = cart.reduce((sum, p) => (p.cartItemType === 'rent' ? sum + p.rentalTotal : sum + ((parseFloat(p.price) || 0) * (p.quantity || 1))), 0);
             let totalDiscount = 0; if (appliedPromo) { if (appliedPromo.discountType === 'percentage') { totalDiscount = discountableSubtotal * (appliedPromo.discountValue / 100); } else { totalDiscount = appliedPromo.discountValue; } totalDiscount = Math.min(totalDiscount, discountableSubtotal); }
             for (const product of cart) {
-                const itemSubtotal = product.cartItemType === 'rent' ? product.rentalTotal + (product.securityDeposit || 0) : (parseFloat(product.price) || 0) * (product.quantity || 1);
+                const itemSubtotal = product.cartItemType === 'rent' ? product.rentalTotal + (product.securityDeposit || 0) : (parseFloat(p.price) || 0) * (product.quantity || 1);
                 const itemDiscountableAmount = product.cartItemType === 'rent' ? product.rentalTotal : itemSubtotal;
                 const proportionalDiscount = discountableSubtotal > 0 ? (itemDiscountableAmount / discountableSubtotal) * totalDiscount : 0;
                 const finalItemPrice = itemSubtotal - proportionalDiscount;
@@ -1514,10 +1600,16 @@
             container.innerHTML = `
             <h2 class="text-2xl font-bold text-slate-800 mb-4 mt-8 pt-8 border-t">List a New Item</h2>
             <form id="list-item-form" class="bg-white p-6 rounded-lg shadow-md space-y-4" novalidate>
-                 <div class="bg-blue-50 border-l-4 border-blue-400 text-blue-800 p-4 rounded-md mb-4" role="alert">
-                    <p class="font-bold">Image Upload Instructions</p>
-                    <p class="text-sm">After submitting this form, please send the product photo via WhatsApp to the admin (${ADMIN_WHATSAPP_NUMBER}). The image will be added to your listing shortly.</p>
-                 </div>
+                 <div>
+                    <label class="block text-sm font-medium text-gray-700">Product Image</label>
+                    <div class="mt-2 flex items-center gap-4">
+                        <img id="image-preview" src="https://via.placeholder.com/100" alt="Image preview" class="w-24 h-24 object-cover rounded-md bg-gray-100 border">
+                        <div class="flex-grow">
+                            <input type="file" id="imageUrl" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100" accept="image/png, image/jpeg, image/webp">
+                            <p class="text-xs text-gray-500 mt-1">Upload any size photo. It will be compressed automatically.</p>
+                        </div>
+                    </div>
+                </div>
                  <div>
                     <label class="block text-sm font-medium text-gray-700">Listing Type</label>
                     <div class="mt-2 flex gap-4">
@@ -1543,6 +1635,25 @@
                 });
             });
 
+            const imageInput = form.querySelector('#imageUrl');
+            const imagePreview = form.querySelector('#image-preview');
+            imageInput.addEventListener('change', async () => {
+                const file = imageInput.files[0];
+                if (file) {
+                     try {
+                        const compressedDataUrl = await compressImage(file);
+                        imagePreview.src = compressedDataUrl;
+                    } catch (error) {
+                        console.error("Image compression failed:", error);
+                        showToast("Could not process the image. Please try another one.");
+                        imagePreview.src = 'https://via.placeholder.com/100';
+                        imageInput.value = ''; // Reset input
+                    }
+                } else {
+                    imagePreview.src = 'https://via.placeholder.com/100';
+                }
+            });
+
             form.addEventListener('submit', handleListSubmit);
         }
 
@@ -1555,8 +1666,8 @@
                         <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
                     <h3 class="text-xl font-bold mt-4">Submission Successful!</h3>
-                    <p class="text-gray-600 mt-2">Your item is now pending approval. Please remember to send the product photo to the admin via WhatsApp.</p>
-                    <p class="text-gray-600 mt-1">Your listing will go live once it's approved.</p>
+                    <p class="text-gray-600 mt-2">Your item is now pending approval.</p>
+                    <p class="text-gray-600 mt-1">If you didn't upload a photo, please send one to the admin. Otherwise, your listing will go live once approved.</p>
                     <button onclick="document.getElementById('modal-container').classList.add('hidden')" class="mt-6 bg-purple-800 text-white font-semibold py-2 px-8 rounded-lg">OK</button>
                 </div>
             `;
@@ -1581,7 +1692,7 @@
             modalContainer.classList.remove('hidden');
         }
 
-        function handleListSubmit(e) {
+        async function handleListSubmit(e) {
             e.preventDefault();
             const form = e.target;
             const submitBtn = document.getElementById('list-item-submit-btn');
@@ -1592,59 +1703,54 @@
                 submitBtn.disabled = false;
                 submitBtn.textContent = 'List Item for Approval';
             };
-
-            const title = form.querySelector('#title').value.trim();
-            const description = form.querySelector('#description').value.trim();
-            if (!title || !description) {
-                showToast("Please fill out the title and description.");
-                resetSubmitButton();
-                return;
-            }
-
-            const listingType = form.querySelector('input[name="listingType"]:checked').value;
-
-            const newProduct = {
-                id: Date.now().toString(),
-                sellerMobile: currentUser.mobile,
-                sellerName: currentUser.name,
-                title: title,
-                description: description,
-                listingType: listingType,
-                status: 'pending_approval',
-                listedDate: new Date().toISOString(),
-                imageUrl: '', // Admin will add this later
-                price: null, stock: 1, rentPrice: null, securityDeposit: null
-            };
-
-            if (listingType === 'sale' || listingType === 'both') {
-                const priceValue = form.querySelector('#price').value;
-                if (!priceValue || isNaN(parseFloat(priceValue)) || parseFloat(priceValue) <= 0) {
-                    showToast("Please provide a valid, positive sale price.");
-                    resetSubmitButton();
-                    return;
-                }
-                newProduct.price = parseFloat(priceValue);
-            }
             
-            if (listingType === 'rent' || listingType === 'both') {
-                const rentPriceValue = form.querySelector('#rentPrice').value;
-                if (!rentPriceValue || isNaN(parseFloat(rentPriceValue)) || parseFloat(rentPriceValue) <= 0) {
-                    showToast("Please provide a valid, positive rent price.");
-                    resetSubmitButton();
-                    return;
-                }
-                newProduct.rentPrice = parseFloat(rentPriceValue);
-                newProduct.securityDeposit = parseFloat(form.querySelector('#securityDeposit').value) || 0;
-            }
+            try {
+                const imagePreview = form.querySelector('#image-preview');
+                const imageUrlBase64 = imagePreview.src.startsWith('data:image') ? imagePreview.src : '';
 
-            db.ref('marketplaceProducts/' + newProduct.id).set(newProduct).then(() => {
+                const title = form.querySelector('#title').value.trim();
+                const description = form.querySelector('#description').value.trim();
+                if (!title || !description) {
+                    throw new Error("Please fill out the title and description.");
+                }
+
+                const listingType = form.querySelector('input[name="listingType"]:checked').value;
+                const newProduct = {
+                    id: Date.now().toString(),
+                    sellerMobile: currentUser.mobile,
+                    sellerName: currentUser.name,
+                    title,
+                    description,
+                    listingType,
+                    status: 'pending_approval',
+                    listedDate: new Date().toISOString(),
+                    imageUrl: imageUrlBase64,
+                    price: null, stock: 1, rentPrice: null, securityDeposit: null
+                };
+
+                if (listingType === 'sale' || listingType === 'both') {
+                    const priceValue = form.querySelector('#price').value;
+                    if (!priceValue || isNaN(parseFloat(priceValue)) || parseFloat(priceValue) <= 0) {
+                        throw new Error("Please provide a valid, positive sale price.");
+                    }
+                    newProduct.price = parseFloat(priceValue);
+                }
+                if (listingType === 'rent' || listingType === 'both') {
+                    const rentPriceValue = form.querySelector('#rentPrice').value;
+                    if (!rentPriceValue || isNaN(parseFloat(rentPriceValue)) || parseFloat(rentPriceValue) <= 0) {
+                        throw new Error("Please provide a valid, positive rent price.");
+                    }
+                    newProduct.rentPrice = parseFloat(rentPriceValue);
+                    newProduct.securityDeposit = parseFloat(form.querySelector('#securityDeposit').value) || 0;
+                }
+
+                await db.ref('marketplaceProducts/' + newProduct.id).set(newProduct);
                 showListingConfirmation();
-                renderProfile(); // This re-renders and form is reset
-            }).catch((error) => {
-                showToast("Error listing item. Please try again.");
-                console.error("Error saving product:", error);
+                renderProfile();
+            } catch (error) {
+                showToast(error.message);
                 resetSubmitButton();
-            });
+            }
         }
         
         // --- ALL NEW/MERGED FUNCTIONS ---
@@ -1805,16 +1911,9 @@
             const container = document.getElementById('my-listings-container');
             const myListings = allProducts.filter(p => p.sellerMobile === currentUser.mobile);
             if (myListings.length === 0) { container.innerHTML = ''; return; }
-            const getGoogleDriveImageUrl = (sharingUrl) => {
-                if (!sharingUrl) return 'https://via.placeholder.com/300x200.png?text=No+Image';
-                if (sharingUrl.includes('firebasestorage')) return sharingUrl;
-                if (!sharingUrl.includes('drive.google.com')) return sharingUrl;
-                const fileIdMatch = sharingUrl.match(/file\/d\/([a-zA-Z0-9_-]+)/);
-                if (fileIdMatch && fileIdMatch[1]) return `https://drive.google.com/uc?export=view&id=${fileIdMatch[1]}`;
-                return sharingUrl;
-            };
+            
             const createMyListingCard = (p) => {
-                const imageUrl = getGoogleDriveImageUrl(p.imageUrl);
+                const imageUrl = getProductImageUrl(p.imageUrl);
                 const statusText = (p.status || '').replace(/_/g, ' ');
                 let statusClass = 'bg-gray-100 text-gray-800';
                 if (p.status === 'sold') statusClass = 'bg-red-100 text-red-800';
@@ -1850,6 +1949,95 @@
             `;
         }
         
+        // --- QR CODE SCANNER LOGIC ---
+        function startPickupScanner() {
+            const scannerModal = document.getElementById('qr-scanner-modal');
+            scannerModal.classList.remove('hidden');
+
+            if (!html5QrCode) {
+                html5QrCode = new Html5Qrcode("qr-reader");
+            }
+            
+            const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+            
+            html5QrCode.start({ facingMode: "environment" }, config, onScanSuccess, onScanFailure)
+                .catch(err => {
+                    console.error("Unable to start scanning.", err);
+                    showToast("Could not start scanner. Please grant camera permission.");
+                    stopPickupScanner();
+                });
+        }
+
+        async function stopPickupScanner() {
+            const modal = document.getElementById('qr-scanner-modal');
+            if (html5QrCode) {
+                try {
+                    if (html5QrCode.isScanning) {
+                        await html5QrCode.stop();
+                    }
+                    await html5QrCode.clear();
+                } catch (err) {
+                    console.error("Failed to stop or clear QR scanner.", err);
+                } finally {
+                    html5QrCode = null;
+                }
+            }
+            modal.classList.add('hidden');
+        }
+
+        async function onScanSuccess(decodedText, decodedResult) {
+            await stopPickupScanner(); // Await the scanner to stop fully
+            const orderId = Number(decodedText);
+            
+            if (!currentUser) {
+                showToast("Error: You are not logged in.");
+                return;
+            }
+
+            try {
+                // Find the firebase key for the order ID
+                const snapshot = await db.ref('orders').orderByChild('id').equalTo(orderId).once('value');
+                if (!snapshot.exists()) {
+                    showToast("Error: Scanned order not found.");
+                    return;
+                }
+
+                const orderData = snapshot.val();
+                const firebaseKey = Object.keys(orderData)[0];
+                const order = { ...orderData[firebaseKey], firebaseKey: firebaseKey };
+
+                // Security Check: Does this order belong to the current user?
+                if (order.customerMobile !== currentUser.mobile) {
+                    showToast("Error: This order does not belong to you.");
+                    return;
+                }
+
+                // Status Check: Is the order ready for pickup?
+                if (order.pipelineStatus !== 'ready_for_pickup') {
+                    showToast(`This order is not yet ready for pickup. Current status: ${order.pipelineStatus.replace(/_/g, ' ')}`);
+                    return;
+                }
+
+                // All checks passed, update status
+                await db.ref(`orders/${firebaseKey}`).update({ pipelineStatus: 'handover' });
+                
+                const successMessage = `Aapka order number ${order.orderNumber} handover ho gaya hai. Navrose Stitching Point app ka upyog karne ke liye dhanyavaad.`;
+                showToast(`Success! Order #${order.orderNumber} collected.`);
+                speak(successMessage, 'hi-IN');
+                
+                // Refresh the orders view
+                renderMyOrders();
+
+            } catch (error) {
+                console.error("Error during QR pickup:", error);
+                showToast("An error occurred. Please try again.");
+            }
+        }
+        
+        function onScanFailure(error) {
+            // This is called frequently. We can ignore it unless we need debugging.
+        }
+
         // --- INITIALIZATION ---
         document.addEventListener('DOMContentLoaded', () => {
             try {
@@ -1877,10 +2065,12 @@
             window.renderMarketplace = renderMarketplace;
             window.deleteMyProduct = deleteMyProduct;
             window.openEditForm = openEditForm;
+            window.startPickupScanner = startPickupScanner;
+            window.stopPickupScanner = stopPickupScanner;
         });
         
     </script>
 
 
 <script src="./script.js"></script><script></script><script type="module" src="/index.tsx"></script>
-<script src="./script.js"></script></body></html>
+<script src="./script.js"></script><script></script><script src="./script.js"></script></body></html>
