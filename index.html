@@ -1,8 +1,9 @@
 <!DOCTYPE html>
-<html lang="en" class=""><head><script>window.livecodes = window.livecodes || {};</script><title>Client app update version </title><meta name="title" content="Client app update version "><meta charset="UTF-8">
+<html lang="en" class=""><head><script>window.livecodes = window.livecodes || {};</script><title>Navrose App</title><meta name="title" content="Navrose App"><meta name="description" content="Buy-sale-rent-earn."><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0"><link rel="stylesheet" href="./style.css"><script src="https://cdn.jsdelivr.net/npm/es-module-shims@1.10.0/dist/es-module-shims.js" async=""></script><script type="importmap">{
   "imports": {}
 }</script></head><body>
+
 <script>window.livecodes = window.livecodes || {};</script><title>Client app </title><meta name="title" content="Client app "><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0"><style id="__livecodes_styles__"></style><script src="https://cdn.jsdelivr.net/npm/es-module-shims@1.10.0/dist/es-module-shims.js" async=""></script>
 <script>window.livecodes = window.livecodes || {};</script><title>Demo client app </title><meta name="title" content="Demo client app "><meta charset="UTF-8">
@@ -25,7 +26,7 @@
     <script src="https://www.gstatic.com/firebasejs/9.15.0/firebase-database-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.15.0/firebase-storage-compat.js"></script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display.swap');
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap');
         
         :root {
             --color-primary: #581c87; /* Purple-900 */
@@ -392,6 +393,30 @@
 </div>
 
     <!-- Modals and Floating Elements -->
+    <div id="status-summary-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 hidden modal">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md text-gray-800 max-h-[80vh] flex flex-col">
+            <div class="p-4 border-b flex justify-between items-center">
+                <h2 class="text-xl font-bold text-slate-800">Your Active Items</h2>
+                <button onclick="document.getElementById('status-summary-modal').classList.add('hidden')" class="text-2xl text-gray-500">×</button>
+            </div>
+            <div class="flex-grow overflow-y-auto p-4 space-y-6">
+                <!-- Active Rentals Section -->
+                <div id="summary-rentals-section">
+                    <!-- Content will be injected here -->
+                </div>
+                <!-- Pending Stitching Section -->
+                <div id="summary-stitching-section">
+                    <!-- Content will be injected here -->
+                </div>
+            </div>
+            <div class="p-4 border-t bg-gray-50">
+                <button onclick="document.getElementById('status-summary-modal').classList.add('hidden')" class="w-full bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700">
+                    Close
+                </button>
+            </div>
+        </div>
+    </div>
+
     <div id="login-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 hidden modal">
          <div class="w-full max-w-sm mx-auto bg-white p-8 rounded-2xl shadow-2xl text-gray-800">
             <div class="flex justify-between items-center mb-6">
@@ -460,6 +485,8 @@
     
     <div id="toast" class="hidden fixed bottom-24 right-5 bg-gray-900 text-white py-2 px-4 rounded-lg shadow-lg z-50"></div>
     <audio id="notification-sound" src="https://freesound.org/data/previews/415/415763_6142149-lq.mp3" preload="auto"></audio>
+    <audio id="voice-message-player"></audio>
+
 
     <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
     <script>
@@ -467,12 +494,13 @@
             apiKey: "AIzaSyC0_DQIiyaVQllFH4pxH1Dm3r2kFXXoOgc",
             authDomain: "navrosetailorapp.firebaseapp.com",
             databaseURL: "https://navrosetailorapp-default-rtdb.asia-southeast1.firebasedatabase.app",
-            projectId: "navrosetailorapp"
+            projectId: "navrosetailorapp",
+            storageBucket: "navrosetailorapp.appspot.com",
         };
         
         let db, storage;
         let currentUser = null;
-        let allCustomers = [];
+        let allCustomers = {};
         let allProducts = [];
         let allTransactions = [];
         let marketplaceSettings = {};
@@ -483,17 +511,18 @@
         let unreadChats = 0;
         let voiceEnabled = true;
         let appliedPromo = null;
-        let orderCountdownInterval = null;
+        let globalCountdownInterval = null;
         let notifiedOrders = new Set();
         let html5QrCode;
+        let visitorId = `visitor_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-
-        const ADMIN_MOBILE = "0000000000"; // Placeholder for Admin's mobile number for chat
+        const ADMIN_MOBILE = "0000000000";
         const ADMIN_WHATSAPP_NUMBER = "917696272780";
 
         let notificationListener = null;
         let chatListener = null;
         let sellerListeners = [];
+        let transactionsListener = null;
         
         const loginBtn = document.getElementById('login-btn');
         const loginModal = document.getElementById('login-modal');
@@ -508,6 +537,21 @@
             toast.textContent = message;
             toast.classList.remove('hidden');
             setTimeout(() => toast.classList.add('hidden'), 3000);
+        }
+
+        async function logActivity(type, data) {
+            if (!currentUser) return;
+            try {
+                await db.ref('activityLogs').push({
+                    type: type,
+                    customerName: currentUser.name,
+                    customerMobile: currentUser.mobile,
+                    timestamp: firebase.database.ServerValue.TIMESTAMP,
+                    ...data
+                });
+            } catch (e) {
+                console.error("Activity logging failed", e);
+            }
         }
 
         function playNotificationSound() {
@@ -530,14 +574,6 @@
             speechSynthesis.speak(utterance);
         }
         
-        /**
-         * Compresses an image file using the canvas API.
-         * @param {File} file The image file to compress.
-         * @param {number} maxWidth The maximum width of the output image.
-         * @param {number} maxHeight The maximum height of the output image.
-         * @param {number} quality The quality of the output JPEG (0 to 1).
-         * @returns {Promise<string>} A promise that resolves with the compressed image as a Base64 data URL.
-         */
         function compressImage(file, maxWidth = 1024, maxHeight = 1024, quality = 0.8) {
             return new Promise((resolve, reject) => {
                 const reader = new FileReader();
@@ -568,7 +604,6 @@
                         const ctx = canvas.getContext('2d');
                         ctx.drawImage(img, 0, 0, width, height);
                         
-                        // Get the data URL with JPEG compression
                         const dataUrl = canvas.toDataURL('image/jpeg', quality);
                         resolve(dataUrl);
                     };
@@ -578,7 +613,7 @@
             });
         }
         
-        // --- AUTH ---
+        // --- AUTH & PRESENCE ---
         loginBtn.addEventListener('click', () => {
             loginModal.classList.remove('hidden');
         });
@@ -595,26 +630,31 @@
 
         async function login(mobile) {
             const customersSnap = await firebase.database().ref('customers').once('value');
-            allCustomers = Object.values(customersSnap.val() || {});
-            const customer = allCustomers.find(c => c.mobile === mobile);
+            const customersData = customersSnap.val() || {};
+            allCustomers = customersData; // Store all customers
+            
+            const customerKey = Object.keys(customersData).find(key => customersData[key].mobile === mobile);
+            const customer = customerKey ? customersData[customerKey] : null;
             
             if (!customer) {
                 alert("Please register first. Contact 7696272780 for registration.");
                 return;
             }
 
-            currentUser = { mobile, name: customer.name };
+            currentUser = { mobile, name: customer.name, key: customerKey };
             localStorage.setItem('loggedInUser', JSON.stringify(currentUser));
             
-            const [settingsSnap, productsSnap, transactionsSnap] = await Promise.all([
+            db.ref(`customers/${customerKey}`).update({ lastLogin: firebase.database.ServerValue.TIMESTAMP });
+            db.ref(`liveVisitors/${visitorId}`).set({ status: 'loggedIn', name: customer.name, mobile: mobile, timestamp: firebase.database.ServerValue.TIMESTAMP });
+            logActivity('login', {});
+            
+            const [settingsSnap, productsSnap] = await Promise.all([
                 firebase.database().ref('marketplaceSettings').once('value'),
-                firebase.database().ref('marketplaceProducts').once('value'),
-                firebase.database().ref('transactions').once('value')
+                firebase.database().ref('marketplaceProducts').once('value')
             ]);
             
             marketplaceSettings = settingsSnap.val() || {};
             allProducts = Object.values(productsSnap.val() || {});
-            allTransactions = Object.values(transactionsSnap.val() || {});
             
             loginModal.classList.add('hidden');
             authArea.classList.add('hidden');
@@ -625,14 +665,22 @@
             setupNotificationListener();
             setupChatListener();
             setupSellerListeners();
+            setupTransactionsListener();
             
+            showStatusSummaryModal();
+
             switchTab('marketplace');
         }
         
         function performLogout() {
+             if (currentUser && currentUser.mobile) {
+                db.ref(`presence/${currentUser.mobile}`).set({ status: 'offline', timestamp: firebase.database.ServerValue.TIMESTAMP });
+                db.ref(`liveVisitors/${visitorId}`).remove();
+             }
              if (notificationListener) notificationListener.off();
              if (chatListener) chatListener.ref.off(chatListener.event);
-             if (orderCountdownInterval) clearInterval(orderCountdownInterval);
+             if (transactionsListener) transactionsListener.ref.off('value', transactionsListener.callback);
+             if (globalCountdownInterval) clearInterval(globalCountdownInterval);
              sellerListeners.forEach(listener => listener.ref.off(listener.event));
              
              currentUser = null;
@@ -646,6 +694,26 @@
         }
 
         document.getElementById('logout-btn').addEventListener('click', performLogout);
+
+        function setupPresenceSystem() {
+            if (!currentUser || !currentUser.mobile) return;
+
+            const myPresenceRef = db.ref(`presence/${currentUser.mobile}`);
+            const connectedRef = db.ref('.info/connected');
+
+            connectedRef.on('value', (snap) => {
+                if (snap.val() === true) {
+                    myPresenceRef.set({
+                        status: 'online',
+                        timestamp: firebase.database.ServerValue.TIMESTAMP
+                    });
+                    myPresenceRef.onDisconnect().set({
+                        status: 'offline',
+                        timestamp: firebase.database.ServerValue.TIMESTAMP
+                    });
+                }
+            });
+        }
 
         // --- TABS & NAVIGATION ---
         document.querySelectorAll('.bottom-nav .nav-item').forEach(btn => {
@@ -668,11 +736,6 @@
         });
 
         function switchTab(tabId) {
-            if (orderCountdownInterval) {
-                clearInterval(orderCountdownInterval);
-                orderCountdownInterval = null;
-            }
-
             if (!currentUser && tabId !== 'marketplace') {
                  showToast("Please log in to view this section.");
                  return;
@@ -788,7 +851,7 @@
                     `}).join('')}
                 </div>
             `;
-            initializeOrderCountdowns();
+            startGlobalCountdowns();
         }
 
         function renderMarketplaceTransactions() {
@@ -853,7 +916,7 @@
 
             content.innerHTML = `<div class="space-y-3">${mySales.map(t => {
                 const product = allProducts.find(p => p.id === t.productId) || {};
-                const buyer = allCustomers.find(c => c.mobile === t.buyerMobile) || {};
+                const buyer = allCustomers[Object.keys(allCustomers).find(key => allCustomers[key].mobile === t.buyerMobile)] || {};
                 const netReceived = (t.amountPaid || 0) - (t.commission || 0);
                 return `
                 <div class="bg-white p-4 rounded-lg shadow-sm">
@@ -943,7 +1006,7 @@
             const availableProducts = allProducts.filter(p => p.status === 'approved');
             const rentedProductIds = new Set(allTransactions.filter(t => t.type === 'rent' && t.status === 'rented_out').map(t => t.productId));
             
-            if(availableProducts.length === 0 && !allProducts.some(p => p.sellerMobile === currentUser.mobile)) {
+            if(availableProducts.length === 0 && (!currentUser || !allProducts.some(p => p.sellerMobile === currentUser.mobile))) {
                 content.innerHTML = `<div class="text-center p-8"><p class="text-gray-600">No items in the marketplace yet.</p></div>`;
                 return;
             }
@@ -995,8 +1058,8 @@
                 }
                 
                 const cardClass = (isRented || isSold) ? 'product-card opacity-70' : 'product-card';
-                const disabledProp = (isRented || isSold || p.sellerMobile === currentUser.mobile) ? 'disabled' : '';
-                const buttonClass = (isRented || isSold || p.sellerMobile === currentUser.mobile) ? 'add-to-cart-btn bg-gray-400 cursor-not-allowed' : 'add-to-cart-btn';
+                const disabledProp = (isRented || isSold || (currentUser && p.sellerMobile === currentUser.mobile)) ? 'disabled' : '';
+                const buttonClass = (isRented || isSold || (currentUser && p.sellerMobile === currentUser.mobile)) ? 'add-to-cart-btn bg-gray-400 cursor-not-allowed' : 'add-to-cart-btn';
 
 
                 return `
@@ -1011,7 +1074,7 @@
                            <p class="font-bold mt-1 truncate">${p.title}</p>
                            <p class="font-semibold text-purple-800">${priceHTML}</p>
                         </div>
-                         <button onclick="addToCart('${p.id}')" class="${buttonClass}" aria-label="Add ${p.title} to cart" ${disabledProp}>
+                         <button onclick="addToCart('${p.id}', '${type}')" class="${buttonClass}" aria-label="Add ${p.title} to cart" ${disabledProp}>
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M3 1a1 1 0 000 2h1.22l.305 1.222a.997.997 0 00.01.042l1.358 5.43-.893.892C3.74 11.846 4.632 14 6.414 14H15a1 1 0 000-2H6.414l1-1H14a1 1 0 00.894-.553l3-6A1 1 0 0017 3H6.28l-.31-1.243A1 1 0 005 1H3zM16 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM6.5 18a1.5 1.5 0 100-3 1.5 1.5 0 000 3z" /></svg>
                         </button>
                     </div>
@@ -1034,7 +1097,7 @@
                 `;
             };
 
-            const myListings = allProducts.filter(p => p.sellerMobile === currentUser.mobile);
+            const myListings = currentUser ? allProducts.filter(p => p.sellerMobile === currentUser.mobile) : [];
             const myListingSlider = myListings.length > 0 ? createSliderSection('My Listings', myListings, null, true) : '';
             
             const saleProducts = availableProducts.filter(p => p.listingType === 'sale' || p.listingType === 'both');
@@ -1069,8 +1132,8 @@
                 const isSold = p.stock !== undefined && p.stock <= 0;
                 let overlayHTML = isRented ? '<div class="absolute inset-0 bg-black bg-opacity-60 flex items-center justify-center rounded-t-lg"><span class="text-white font-bold text-lg">RENTED OUT</span></div>' : (isSold ? '<div class="absolute inset-0 bg-black bg-opacity-60 flex items-center justify-center rounded-t-lg"><span class="text-white font-bold text-lg">SOLD OUT</span></div>' : '');
                 const cardClass = (isRented || isSold) ? 'product-card opacity-70' : 'product-card';
-                const disabledProp = (isRented || isSold || p.sellerMobile === currentUser.mobile) ? 'disabled' : '';
-                const buttonClass = (isRented || isSold || p.sellerMobile === currentUser.mobile) ? 'add-to-cart-btn bg-gray-400 cursor-not-allowed' : 'add-to-cart-btn';
+                const disabledProp = (isRented || isSold || (currentUser && p.sellerMobile === currentUser.mobile)) ? 'disabled' : '';
+                const buttonClass = (isRented || isSold || (currentUser && p.sellerMobile === currentUser.mobile)) ? 'add-to-cart-btn bg-gray-400 cursor-not-allowed' : 'add-to-cart-btn';
 
                 return `
                 <div class="${cardClass}">
@@ -1084,7 +1147,7 @@
                            <p class="font-bold mt-1 truncate">${p.title}</p>
                            <p class="font-semibold text-purple-800">${priceHTML}</p>
                         </div>
-                         <button onclick="addToCart('${p.id}')" class="${buttonClass}" aria-label="Add ${p.title} to cart" ${disabledProp}>
+                         <button onclick="addToCart('${p.id}', '${type}')" class="${buttonClass}" aria-label="Add ${p.title} to cart" ${disabledProp}>
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M3 1a1 1 0 000 2h1.22l.305 1.222a.997.997 0 00.01.042l1.358 5.43-.893.892C3.74 11.846 4.632 14 6.414 14H15a1 1 0 000-2H6.414l1-1H14a1 1 0 00.894-.553l3-6A1 1 0 0017 3H6.28l-.31-1.243A1 1 0 005 1H3zM16 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM6.5 18a1.5 1.5 0 100-3 1.5 1.5 0 000 3z" /></svg>
                         </button>
                     </div>
@@ -1121,7 +1184,6 @@
                 updateNotificationBadge();
                 
                 playNotificationSound();
-                speak(notification.title || 'New notification');
                 showToast(`🔔 ${notification.title}`);
             });
         }
@@ -1138,13 +1200,30 @@
                  list.innerHTML = `<p class="text-gray-500 text-center py-4">No new notifications.</p>`;
                  return;
             }
-            list.innerHTML = notifications.map(n => `
+            list.innerHTML = notifications.map(n => {
+                let actionBtn = '';
+                if (n.type === 'voice' && (n.voiceUrl || n.voiceData)) {
+                    const dataAttribute = n.voiceData ? `data-voice-data="${n.voiceData}"` : `data-voice-url="${n.voiceUrl}"`;
+                    actionBtn = `<button class="play-voice-btn mt-2 bg-indigo-100 text-indigo-700 text-xs font-semibold px-3 py-1 rounded-full" ${dataAttribute}>Play Voice Message</button>`;
+                }
+                return `
                 <div class="bg-gray-50 p-3 rounded-lg border">
                     <p class="font-semibold text-gray-800">${n.title}</p>
                     <p class="text-sm text-gray-600">${n.body}</p>
+                    ${actionBtn}
                     <p class="text-xs text-gray-400 text-right mt-1">${new Date(n.timestamp).toLocaleString()}</p>
                 </div>
-            `).join('');
+            `}).join('');
+            
+            list.querySelectorAll('.play-voice-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    if (e.target.dataset.voiceData) {
+                        playVoiceMessage(e.target.dataset.voiceData, true);
+                    } else {
+                        playVoiceMessage(e.target.dataset.voiceUrl, false);
+                    }
+                });
+            });
         }
 
         function setupSellerListeners() {
@@ -1172,6 +1251,33 @@
                 }
             });
             sellerListeners.push({ ref: myProductsRef, event: 'child_changed' });
+        }
+
+        function setupTransactionsListener() {
+            if (transactionsListener) transactionsListener.ref.off('value', transactionsListener.callback);
+            
+            const transactionsRef = db.ref('transactions');
+            const callback = (snap) => {
+                allTransactions = Object.values(snap.val() || {});
+                if (!currentUser) return; // Don't re-render if not logged in
+
+                const activeTab = document.querySelector('.bottom-nav .nav-item.active')?.dataset.tab;
+                if (activeTab === 'my-orders') {
+                    renderMyActiveRentals();
+                    const activeSubTab = document.querySelector('.sub-tab-btn-secondary.active')?.dataset.mtsubtab;
+                    if(activeSubTab === 'purchases') renderMTPurchases();
+                    else if (activeSubTab === 'sales') renderMTSales();
+                    else if (activeSubTab === 'rentals') renderMTRentals();
+                } else if (activeTab === 'profile') {
+                    const ledgerContainer = document.getElementById('my-ledger-container');
+                    if (ledgerContainer) {
+                        ledgerContainer.innerHTML = renderMyMarketplaceLedger();
+                    }
+                }
+            };
+            
+            transactionsListener = { ref: transactionsRef, callback: callback };
+            transactionsRef.on('value', callback);
         }
 
         // --- CHAT LOGIC ---
@@ -1222,6 +1328,16 @@
             return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
         }
 
+        window.playVoiceMessage = (data, isBase64 = false) => {
+            const player = document.getElementById('voice-message-player');
+            if (player) {
+                const audioSrc = isBase64 ? `data:audio/wav;base64,${data}` : data;
+                player.src = audioSrc;
+                player.play().catch(e => console.error("Audio playback error:", e));
+                showToast("Playing voice message...");
+            }
+        };
+
         async function renderChatMessages() {
             if (!currentUser) return;
             const chatId = [currentUser.mobile, ADMIN_MOBILE].sort().join('_');
@@ -1236,10 +1352,25 @@
             
             container.innerHTML = messages.map(msg => {
                 const sentOrReceived = msg.sender === currentUser.mobile ? 'sent' : 'received';
+                
+                let messageContent = '';
+                if (msg.type === 'voice' && (msg.voiceUrl || msg.voiceData)) {
+                    const isBase64 = !!msg.voiceData;
+                    const data = msg.voiceData || msg.voiceUrl;
+                    messageContent = `
+                        <button onclick="playVoiceMessage('${data}', ${isBase64})" class="flex items-center gap-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd" /></svg>
+                            <span>${msg.text}</span>
+                        </button>
+                    `;
+                } else {
+                    messageContent = `<p>${msg.text}</p>`;
+                }
+
                 return `
                 <div class="chat-bubble-wrapper ${sentOrReceived}">
                     <div class="chat-bubble ${sentOrReceived}">
-                        <p>${msg.text}</p>
+                        ${messageContent}
                     </div>
                     <span class="chat-timestamp">${formatTimestamp(msg.timestamp)}</span>
                 </div>
@@ -1272,7 +1403,12 @@
         
         // --- CART & ORDER LOGIC ---
         function saveCart() {
-            localStorage.setItem('navroseCart', JSON.stringify(cart));
+            try {
+                localStorage.setItem('navroseCart', JSON.stringify(cart));
+            } catch (e) {
+                console.error("Could not save cart to localStorage:", e);
+                showToast("Error saving cart. Storage might be full.");
+            }
             updateCartBadge();
         }
 
@@ -1286,7 +1422,7 @@
             }
         }
 
-        function addToCart(productId) {
+        function addToCart(productId, type) {
             if (!currentUser) { showToast("Please log in to add items to your cart."); return; }
             const product = allProducts.find(p => p.id === productId);
             if (!product) return;
@@ -1322,15 +1458,16 @@
             } else if (product.listingType === 'rent') {
                 showRentalModal(productId);
             } else {
-                addItemToCart(product.id, product.listingType);
+                addItemToCart(productId, type);
             }
         }
         window.addItemToCart = (productId, type) => {
             const product = allProducts.find(p => p.id === productId);
-            const cartItem = { ...product, cartItemType: type, quantity: 1 };
+            const cartItem = { id: product.id, cartItemType: type, quantity: 1 };
             cart.push(cartItem);
             saveCart();
             showToast(`${product.title} added to cart!`);
+            logActivity('addToCart', { productId: product.id, productName: product.title, type: type });
             document.getElementById('modal-container').classList.add('hidden');
         };
 
@@ -1372,6 +1509,10 @@
         }
 
         window.removeFromCart = (index) => {
+            const productToRemove = allProducts.find(p => p.id === cart[index].id);
+            if(productToRemove) {
+                logActivity('removeFromCart', { productId: productToRemove.id, productName: productToRemove.title, type: cart[index].cartItemType });
+            }
             cart.splice(index, 1);
             saveCart();
             appliedPromo = null; // Reset promo on cart change
@@ -1380,7 +1521,6 @@
 
         async function placeOrder() {
             if (cart.length === 0) return;
-
             const hasRental = cart.some(item => item.cartItemType === 'rent');
             if (hasRental) {
                 showRentalTermsModal();
@@ -1436,36 +1576,81 @@
         }
 
         async function proceedWithOrder() {
-            for (const product of cart) {
-                if (product.cartItemType === 'sale' && product.stock !== undefined && product.stock < product.quantity) {
-                    showToast(`Not enough stock for ${product.title}. Please adjust your cart.`);
-                    return;
-                }
+            const fullCart = cart.map(item => {
+                const productDetails = allProducts.find(p => p.id === item.id);
+                return productDetails ? { ...productDetails, ...item } : null;
+            }).filter(Boolean);
+
+            if (fullCart.length !== cart.length) {
+                showToast("Some items in your cart are no longer available and were removed.");
+                cart = fullCart.map(p => ({ id: p.id, cartItemType: p.cartItemType, quantity: p.quantity, rentalDays: p.rentalDays, rentalTotal: p.rentalTotal, securityDeposit: p.securityDeposit }));
+                saveCart();
+                renderCart();
+                return;
+            }
+
+            for (const product of fullCart) {
+                const productRef = db.ref(`marketplaceProducts/${product.id}`);
+                await productRef.transaction(currentData => {
+                    if (!currentData) return; // Product was deleted
+                    if (product.cartItemType === 'sale') {
+                        const currentStock = currentData.stock || 0;
+                        if (currentStock < (product.quantity || 1)) {
+                            // Abort transaction
+                            return; 
+                        }
+                        currentData.stock -= (product.quantity || 1);
+                        if(currentData.stock <= 0) {
+                            currentData.status = 'sold';
+                        }
+                    }
+                    return currentData;
+                });
             }
             
-            const subtotal = cart.reduce((sum, p) => (p.cartItemType === 'rent' ? sum + p.rentalTotal + (p.securityDeposit || 0) : sum + ((parseFloat(p.price) || 0) * (p.quantity || 1))), 0);
-            const discountableSubtotal = cart.reduce((sum, p) => (p.cartItemType === 'rent' ? sum + p.rentalTotal : sum + ((parseFloat(p.price) || 0) * (p.quantity || 1))), 0);
+            const subtotal = fullCart.reduce((sum, p) => (p.cartItemType === 'rent' ? sum + (p.rentalTotal || 0) + (p.securityDeposit || 0) : sum + ((parseFloat(p.price) || 0) * (p.quantity || 1))), 0); 
+            const discountableSubtotal = fullCart.reduce((sum, p) => (p.cartItemType === 'rent' ? sum + (p.rentalTotal || 0) : sum + ((parseFloat(p.price) || 0) * (p.quantity || 1))), 0); 
             let totalDiscount = 0; if (appliedPromo) { if (appliedPromo.discountType === 'percentage') { totalDiscount = discountableSubtotal * (appliedPromo.discountValue / 100); } else { totalDiscount = appliedPromo.discountValue; } totalDiscount = Math.min(totalDiscount, discountableSubtotal); }
-            for (const product of cart) {
-                const itemSubtotal = product.cartItemType === 'rent' ? product.rentalTotal + (product.securityDeposit || 0) : (parseFloat(p.price) || 0) * (product.quantity || 1);
-                const itemDiscountableAmount = product.cartItemType === 'rent' ? product.rentalTotal : itemSubtotal;
+            
+            for (const product of fullCart) {
+                const itemSubtotal = product.cartItemType === 'rent' ? (product.rentalTotal || 0) + (product.securityDeposit || 0) : (parseFloat(product.price) || 0) * (product.quantity || 1);
+                const itemDiscountableAmount = product.cartItemType === 'rent' ? (product.rentalTotal || 0) : itemSubtotal;
                 const proportionalDiscount = discountableSubtotal > 0 ? (itemDiscountableAmount / discountableSubtotal) * totalDiscount : 0;
                 const finalItemPrice = itemSubtotal - proportionalDiscount;
-                const saleComm = product.saleCommissionPercentage ?? marketplaceSettings.defaultSaleCommission ?? 10;
-                const rentComm = product.rentCommissionPercentage ?? marketplaceSettings.defaultRentCommission ?? 15;
-                let commission = 0; if (product.cartItemType === 'sale') { const discountedSalePrice = itemDiscountableAmount - proportionalDiscount; commission = discountedSalePrice * (saleComm / 100); } else if (product.cartItemType === 'rent') { const discountedRentPart = itemDiscountableAmount - proportionalDiscount; commission = discountedRentPart * (rentComm / 100); }
+
+                let commission = 0;
+                if (product.cartItemType === 'sale') {
+                    const discountedSalePrice = itemDiscountableAmount - proportionalDiscount;
+                    const saleCommType = product.saleCommissionType || 'percentage';
+                    const saleCommValue = product.saleCommissionValue ?? product.saleCommissionPercentage ?? marketplaceSettings.defaultSaleCommission ?? 10;
+                    if (saleCommType === 'percentage') {
+                        commission = discountedSalePrice * (parseFloat(saleCommValue) / 100);
+                    } else {
+                        commission = parseFloat(saleCommValue);
+                    }
+                } else if (product.cartItemType === 'rent') {
+                    const discountedRentPart = itemDiscountableAmount - proportionalDiscount;
+                    const rentCommType = product.rentCommissionType || 'percentage';
+                    const rentCommValue = product.rentCommissionValue ?? product.rentCommissionPercentage ?? marketplaceSettings.defaultRentCommission ?? 15;
+                    if (rentCommType === 'percentage') {
+                        commission = discountedRentPart * (parseFloat(rentCommValue) / 100);
+                    } else {
+                        commission = parseFloat(rentCommValue);
+                    }
+                }
+                
                 const transaction = { id: db.ref('transactions').push().key, productId: product.id, buyerMobile: currentUser.mobile, sellerMobile: product.sellerMobile, amountPaid: finalItemPrice, promoCode: appliedPromo ? appliedPromo.code : null, discountApplied: proportionalDiscount, commission: commission, timestamp: firebase.database.ServerValue.TIMESTAMP, type: product.cartItemType, quantity: product.quantity || null, };
-                if (product.cartItemType === 'rent') { transaction.rentalDays = product.rentalDays; transaction.rentalTotal = product.rentalTotal; transaction.securityDeposit = product.securityDeposit || 0; transaction.status = 'rented_out'; transaction.depositStatus = 'held'; } else { transaction.status = 'pending_handover'; }
+                if (product.cartItemType === 'rent') { transaction.rentalDays = product.rentalDays; transaction.rentalTotal = product.rentalTotal || 0; transaction.securityDeposit = product.securityDeposit || 0; transaction.status = 'rented_out'; transaction.depositStatus = 'held'; } else { transaction.status = 'pending_handover'; }
                 await db.ref('transactions/' + transaction.id).set(transaction);
-                if (product.cartItemType === 'sale') { await db.ref(`marketplaceProducts/${product.id}`).update({ stock: firebase.database.ServerValue.increment(-(product.quantity || 1)) }); }
             }
+            logActivity('checkout', { itemCount: fullCart.length, totalAmount: subtotal - totalDiscount, items: fullCart.map(p => p.title) });
             cart = []; appliedPromo = null; saveCart(); 
             switchTab('my-orders');
             showOrderConfirmation();
         }
 
         function renderMyMarketplaceLedger() {
-            const myTransactions = allTransactions.filter(t => t.buyerMobile === currentUser.mobile || t.sellerMobile === currentUser.mobile);
+            const myTransactions = allTransactions.filter(t => (t.buyerMobile === currentUser.mobile || t.sellerMobile === currentUser.mobile) && t.status !== 'Canceled');
             
             if (myTransactions.length === 0) {
                 return `<div class="bg-white p-6 rounded-2xl shadow-lg"><h3 class="text-2xl font-bold text-slate-800 mb-2">My Marketplace Ledger</h3><p class="text-gray-500">You have no marketplace transactions yet.</p></div>`;
@@ -1567,7 +1752,7 @@
             `;
         }
         
-        function renderProfile() {
+        async function renderProfile() {
             const hasTransactions = allTransactions.some(t => t.sellerMobile === currentUser.mobile || t.buyerMobile === currentUser.mobile);
 
             tabContent.innerHTML = `
@@ -1576,6 +1761,7 @@
                     <h2 class="text-3xl font-bold text-slate-800">My Profile</h2>
                     <p class="mt-2 text-lg"><strong>Name:</strong> ${currentUser.name}</p>
                     <p class="text-lg"><strong>Mobile:</strong> ${currentUser.mobile}</p>
+                    <button id="view-full-bill-btn" class="mt-4 w-full md:w-auto bg-purple-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-purple-700 transition-colors">View Full Outstanding Bill</button>
                     <button id="profile-logout-btn" class="mt-4 w-full md:w-auto bg-red-500 text-white font-bold py-2 px-6 rounded-lg hover:bg-red-600 transition-colors">Logout</button>
                 </div>
 
@@ -1586,6 +1772,7 @@
             </div>`;
             
             document.getElementById('profile-logout-btn').addEventListener('click', performLogout);
+            document.getElementById('view-full-bill-btn').addEventListener('click', showFullBill);
             
             if (hasTransactions) {
                 document.getElementById('my-ledger-container').innerHTML = renderMyMarketplaceLedger();
@@ -1593,6 +1780,78 @@
 
             renderMyListings();
             renderListItemForm();
+        }
+        
+        async function showFullBill() {
+            const modalContainer = document.getElementById('modal-container');
+            const modalContent = document.getElementById('modal-content');
+            modalContent.innerHTML = `<div class="p-8 text-center text-gray-800">Calculating your bill...</div>`;
+            modalContainer.classList.remove('hidden');
+
+            const today = new Date().toISOString().slice(0, 10);
+            const [ordersSnap, queueSnap] = await Promise.all([
+                db.ref('orders').orderByChild('customerMobile').equalTo(currentUser.mobile).once('value'),
+                db.ref(`queues/${today}`).orderByChild('customerMobile').equalTo(currentUser.mobile).once('value')
+            ]);
+
+            const allCustomerOrders = {...(ordersSnap.val() || {}), ...(queueSnap.val() || {})};
+            const outstandingOrders = Object.values(allCustomerOrders).filter(order => {
+                let totalCharges = 0;
+                if (order.type === 'stitching' && order.items) totalCharges = order.items.reduce((sum, item) => sum + (parseFloat(item.charges) || 0), 0);
+                else totalCharges = parseFloat(order.totalAmount) || parseFloat(order.charges) || 0;
+                const totalPaid = Math.max(parseFloat(order.advancePaid) || 0, parseFloat(order.receivedPayment) || 0);
+                return (totalCharges - totalPaid) > 0.01;
+            });
+
+            if (outstandingOrders.length === 0) {
+                modalContent.innerHTML = `<div class="p-8 text-center text-gray-800"><h3 class="font-bold text-lg">All Cleared!</h3><p>You have no outstanding payments.</p><button onclick="document.getElementById('modal-container').classList.add('hidden')" class="mt-4 bg-gray-200 py-2 px-4 rounded-lg">Close</button></div>`;
+                return;
+            }
+
+            let grandTotal = 0;
+            let grandPaid = 0;
+            const billItemsHTML = outstandingOrders.map(order => {
+                let totalCharges = 0;
+                if (order.type === 'stitching' && order.items) totalCharges = order.items.reduce((sum, item) => sum + (item.charges || 0), 0);
+                else totalCharges = parseFloat(order.totalAmount) || parseFloat(order.charges) || 0;
+                const totalPaid = Math.max(parseFloat(order.advancePaid) || 0, parseFloat(order.receivedPayment) || 0);
+                const balance = totalCharges - totalPaid;
+
+                grandTotal += totalCharges;
+                grandPaid += totalPaid;
+                const itemsDesc = order.items ? order.items.map(i => i.item).join(', ') : order.description;
+
+                return `<tr class="border-b"><td class="py-2 px-3">${order.orderNumber || 'N/A'}</td><td class="py-2 px-3">${itemsDesc || 'N/A'}</td><td class="py-2 px-3 text-right">₹${balance.toFixed(2)}</td></tr>`;
+            }).join('');
+
+            const grandTotalDue = grandTotal - grandPaid;
+
+            modalContent.innerHTML = `
+                <div class="bg-white rounded-lg shadow-2xl w-full max-w-3xl flex flex-col max-h-[90vh]">
+                    <div class="p-6 flex-grow overflow-y-auto">
+                        <header class="text-center mb-6 border-b pb-3">
+                            <h2 class="text-2xl font-bold text-gray-800">Navrose Stitching Point</h2>
+                            <p class="text-gray-500 text-sm">Consolidated Bill</p>
+                        </header>
+                        <div class="flex justify-between mb-6 text-sm">
+                            <div><h4 class="font-bold">Bill To:</h4><p>${currentUser.name}</p><p>${currentUser.mobile}</p></div>
+                            <div class="text-right"><p><strong>Date:</strong> ${new Date().toLocaleDateString()}</p></div>
+                        </div>
+                        <table class="w-full text-left text-sm mb-6">
+                            <thead class="bg-gray-100"><tr><th class="p-2 font-semibold">Order #</th><th class="p-2 font-semibold">Items</th><th class="p-2 font-semibold text-right">Amount Due</th></tr></thead>
+                            <tbody>${billItemsHTML}</tbody>
+                        </table>
+                        <div class="flex justify-end"><div class="w-full max-w-xs space-y-1 text-sm">
+                            <div class="flex justify-between py-1 border-b"><span class="text-gray-600">Total Bill Amount:</span><span>₹${grandTotal.toFixed(2)}</span></div>
+                            <div class="flex justify-between py-1 border-b"><span class="text-gray-600">Total Paid:</span><span>₹${grandPaid.toFixed(2)}</span></div>
+                            <div class="flex justify-between py-2 text-lg font-bold"><span class="text-gray-800">Final Amount Due:</span><span class="text-red-600">₹${grandTotalDue.toFixed(2)}</span></div>
+                        </div></div>
+                    </div>
+                    <div class="p-4 border-t bg-gray-50 rounded-b-lg flex justify-end">
+                        <button onclick="document.getElementById('modal-container').classList.add('hidden')" class="bg-gray-200 text-gray-800 py-2 px-5 rounded-lg hover:bg-gray-300 font-semibold">Close</button>
+                    </div>
+                </div>
+            `;
         }
 
         function renderListItemForm() {
@@ -1755,46 +2014,214 @@
         
         // --- ALL NEW/MERGED FUNCTIONS ---
 
-        function showRentalModal(productId) { const product = allProducts.find(p => p.id === productId); if (!product) return; const modalContainer = document.getElementById('modal-container'); const modalContent = document.getElementById('modal-content'); let rentalDays = 1; const rentPrice = parseFloat(product.rentPrice) || 0; const securityDeposit = parseFloat(product.securityDeposit) || 0; const updateTotal = () => { const totalRent = rentPrice * rentalDays; const grandTotal = totalRent + securityDeposit; document.getElementById('rental-total-rent').textContent = `₹${totalRent.toFixed(2)}`; document.getElementById('rental-grand-total').textContent = `₹${grandTotal.toFixed(2)}`; }; modalContent.innerHTML = `<div class="p-6"><h3 class="font-bold text-lg mb-4">Rent: ${product.title}</h3> <div class="my-4 flex items-center justify-center gap-4"><label class="font-semibold">Duration:</label><div class="flex items-center gap-2"><button id="decrement-days" class="bg-gray-200 w-8 h-8 rounded-full font-bold text-lg">-</button><input type="number" id="rental-days" value="1" min="1" class="w-16 text-center border rounded-md p-2" readonly><button id="increment-days" class="bg-gray-200 w-8 h-8 rounded-full font-bold text-lg">+</button></div></div> <div class="text-right space-y-1 p-4 bg-gray-50 rounded-lg"><p>Rental Total: <span id="rental-total-rent" class="font-semibold"></span></p><p>Security Deposit: <span class="font-semibold">₹${securityDeposit.toFixed(2)}</span></p><p class="font-bold text-xl border-t pt-2 mt-2">Grand Total: <span id="rental-grand-total"></span></p></div> <button id="confirm-rent-btn" class="w-full mt-4 bg-green-600 text-white font-bold py-3 rounded-lg">Confirm & Add</button></div>`; modalContainer.classList.remove('hidden'); const daysInput = document.getElementById('rental-days'); document.getElementById('decrement-days').onclick = () => { if(rentalDays > 1) { rentalDays--; daysInput.value = rentalDays; updateTotal(); }}; document.getElementById('increment-days').onclick = () => { rentalDays++; daysInput.value = rentalDays; updateTotal();}; document.getElementById('confirm-rent-btn').onclick = () => { const totalRent = rentPrice * rentalDays; const cartItem = { ...product, cartItemType: 'rent', rentalDays: rentalDays, rentalTotal: totalRent, price: totalRent + securityDeposit, securityDeposit: securityDeposit }; cart.push(cartItem); saveCart(); showToast(`${product.title} added for ${rentalDays} day(s).`); modalContainer.classList.add('hidden'); }; updateTotal(); }
-        function updateCartTotals() { /* ... identical to old client ... */ const itemsListDiv = document.getElementById('cart-items-list'); const subtotalEl = document.getElementById('cart-subtotal'); const discountRowEl = document.getElementById('cart-discount-row'); const discountEl = document.getElementById('cart-discount'); const grandTotalEl = document.getElementById('cart-grand-total'); let subtotal = cart.reduce((sum, p) => (p.cartItemType === 'rent' ? sum + p.rentalTotal + (p.securityDeposit || 0) : sum + ((parseFloat(p.price) || 0) * (p.quantity || 1))), 0); let discountableSubtotal = cart.reduce((sum, p) => (p.cartItemType === 'rent' ? sum + p.rentalTotal : sum + ((parseFloat(p.price) || 0) * (p.quantity || 1))), 0); let discount = 0; if (appliedPromo) { if (appliedPromo.discountType === 'percentage') { discount = discountableSubtotal * (appliedPromo.discountValue / 100); } else { discount = appliedPromo.discountValue; } discount = Math.min(discount, discountableSubtotal); } itemsListDiv.innerHTML = cart.map((p, index) => { let itemHTML = ''; const itemSubtotal = p.cartItemType === 'rent' ? p.rentalTotal + (p.securityDeposit || 0) : (parseFloat(p.price) || 0) * (p.quantity || 1); if (p.cartItemType === 'rent') { itemHTML = `<div><p class="font-semibold">${p.title} (Rent)</p><p class="text-sm text-gray-600">${p.rentalDays} day(s) @ ₹${p.rentPrice}/day + ₹${(p.securityDeposit || 0).toFixed(2)} deposit</p></div>`; } else { itemHTML = `<div><p class="font-semibold">${p.title} (Sale)</p><p class="text-sm text-gray-600">${p.quantity || 1} x ₹${p.price.toFixed(2)}</p></div>`; } return `<div class="flex justify-between items-center border-b pb-2">${itemHTML}<button onclick="removeFromCart(${index})" class="text-red-500 text-xs font-semibold">Remove</button></div>`; }).join(''); subtotalEl.textContent = `₹${subtotal.toFixed(2)}`; discountRowEl.classList.toggle('hidden', discount <= 0); discountEl.textContent = `- ₹${discount.toFixed(2)}`; grandTotalEl.textContent = `₹${(subtotal - discount).toFixed(2)}`; }
-        async function applyPromoCode() { /* ... identical to old client ... */ const input = document.getElementById('promo-code-input'); const code = input.value.trim().toUpperCase(); if (!code) return; const promoCodes = marketplaceSettings.promoCodes || {}; const promo = Object.values(promoCodes).find(p => p.code === code); const discountableSubtotal = cart.reduce((sum, p) => (p.cartItemType === 'rent' ? sum + p.rentalTotal : sum + ((parseFloat(p.price) || 0) * (p.quantity || 1))), 0); if (!promo || !promo.isActive) { showToast("Invalid or expired promo code."); appliedPromo = null; } else if (promo.minOrderValue && discountableSubtotal < promo.minOrderValue) { showToast(`This code requires a minimum order of ₹${promo.minOrderValue}.`); appliedPromo = null; } else { appliedPromo = promo; showToast(`Promo code "${promo.code}" applied!`); const promoArea = document.getElementById('promo-area'); const appliedPromoArea = document.getElementById('applied-promo-area'); promoArea.classList.add('hidden'); appliedPromoArea.classList.remove('hidden'); appliedPromoArea.innerHTML = `<div class="flex justify-between items-center bg-green-50 text-green-700 p-2 rounded-md"><p class="text-sm font-semibold">Code Applied: <strong>${promo.code}</strong></p><button id="remove-promo-btn" class="text-xs font-bold">&times; Remove</button></div>`; document.getElementById('remove-promo-btn').addEventListener('click', () => { appliedPromo = null; promoArea.classList.remove('hidden'); appliedPromoArea.classList.add('hidden'); input.value = ''; updateCartTotals(); showToast("Promo code removed."); }); } updateCartTotals(); }
-        function renderMyActiveRentals() { /* ... identical to old client, with minor style tweaks ... */ const rentalSection = document.getElementById('active-rentals-section'); if (!currentUser) return; const myRentals = allTransactions.filter(t => t.buyerMobile === currentUser.mobile && t.type === 'rent' && t.status === 'rented_out'); if (myRentals.length === 0) { rentalSection.innerHTML = ''; if (orderCountdownInterval) clearInterval(orderCountdownInterval); return; } const rentalCards = myRentals.map(t => { if (t.rentalHandoverTimestamp) { const startDate = new Date(t.rentalHandoverTimestamp); const dueDate = new Date(startDate); dueDate.setDate(startDate.getDate() + t.rentalDays); return `<div class="bg-white p-4 rounded-lg shadow-md border-l-4 border-amber-500 mb-2"><p class="font-bold">Rented: ${allProducts.find(p => p.id === t.productId)?.title || 'Item'}</p><p class="text-sm">Due Date: ${dueDate.toLocaleDateString()}</p><div class="text-lg font-bold mt-1" data-due-date="${dueDate.toISOString()}"></div></div>`; } else { return `<div class="bg-white p-4 rounded-lg shadow-md border-l-4 border-blue-500 mb-2"><p class="font-bold">Rented: ${allProducts.find(p => p.id === t.productId)?.title || 'Item'}</p><p class="text-md font-bold text-blue-600 mt-2">Awaiting Pickup from Shop</p></div>`; } }).join(''); rentalSection.innerHTML = `<h2 class="text-xl font-bold mb-3 text-gray-800">My Active Rentals</h2>${rentalCards}`; updateCountdownTimers(); if (orderCountdownInterval) clearInterval(orderCountdownInterval); orderCountdownInterval = setInterval(updateCountdownTimers, 1000); }
-        
-        function initializeOrderCountdowns() {
-            if (orderCountdownInterval) clearInterval(orderCountdownInterval);
-            orderCountdownInterval = setInterval(updateAllOrderCountdowns, 1000);
-            updateAllOrderCountdowns(); // Run once immediately
+        function showRentalModal(productId) { 
+            const product = allProducts.find(p => p.id === productId); 
+            if (!product) return; 
+            const modalContainer = document.getElementById('modal-container'); 
+            const modalContent = document.getElementById('modal-content'); 
+            let rentalDays = 1; 
+            const rentPrice = parseFloat(product.rentPrice) || 0; 
+            const securityDeposit = parseFloat(product.securityDeposit) || 0; 
+            const updateTotal = () => { 
+                const totalRent = rentPrice * rentalDays; 
+                const grandTotal = totalRent + securityDeposit; 
+                document.getElementById('rental-total-rent').textContent = `₹${totalRent.toFixed(2)}`; 
+                document.getElementById('rental-grand-total').textContent = `₹${grandTotal.toFixed(2)}`; 
+            }; 
+            modalContent.innerHTML = `<div class="p-6"><h3 class="font-bold text-lg mb-4">Rent: ${product.title}</h3> <div class="my-4 flex items-center justify-center gap-4"><label class="font-semibold">Duration:</label><div class="flex items-center gap-2"><button id="decrement-days" class="bg-gray-200 w-8 h-8 rounded-full font-bold text-lg">-</button><input type="number" id="rental-days" value="1" min="1" class="w-16 text-center border rounded-md p-2" readonly><button id="increment-days" class="bg-gray-200 w-8 h-8 rounded-full font-bold text-lg">+</button></div></div> <div class="text-right space-y-1 p-4 bg-gray-50 rounded-lg"><p>Rental Total: <span id="rental-total-rent" class="font-semibold"></span></p><p>Security Deposit: <span class="font-semibold">₹${securityDeposit.toFixed(2)}</span></p><p class="font-bold text-xl border-t pt-2 mt-2">Grand Total: <span id="rental-grand-total"></span></p></div> <button id="confirm-rent-btn" class="w-full mt-4 bg-green-600 text-white font-bold py-3 rounded-lg">Confirm & Add</button></div>`; 
+            modalContainer.classList.remove('hidden'); 
+            const daysInput = document.getElementById('rental-days'); 
+            document.getElementById('decrement-days').onclick = () => { if(rentalDays > 1) { rentalDays--; daysInput.value = rentalDays; updateTotal(); }}; 
+            document.getElementById('increment-days').onclick = () => { rentalDays++; daysInput.value = rentalDays; updateTotal();}; 
+            document.getElementById('confirm-rent-btn').onclick = () => { 
+                const totalRent = rentPrice * rentalDays; 
+                const cartItem = { id: product.id, cartItemType: 'rent', rentalDays: rentalDays, rentalTotal: totalRent, securityDeposit: securityDeposit };
+                cart.push(cartItem); 
+                saveCart(); 
+                showToast(`${product.title} added for ${rentalDays} day(s).`); 
+                logActivity('addToCart', { productId: product.id, productName: product.title, type: 'rent' });
+                modalContainer.classList.add('hidden'); 
+            }; 
+            updateTotal(); 
         }
 
-        function updateAllOrderCountdowns() {
-            const countdownElements = document.querySelectorAll('[data-due-date]');
-            if (countdownElements.length === 0) {
-                clearInterval(orderCountdownInterval);
-                orderCountdownInterval = null;
-                return;
-            }
-            countdownElements.forEach(el => {
-                const dueDate = new Date(parseInt(el.dataset.dueDate));
-                const orderId = el.dataset.orderId;
-                const orderNumber = el.dataset.orderNumber;
-                const now = new Date();
-                const diff = dueDate - now;
+        function updateCartTotals() { 
+            const fullCart = cart.map(item => {
+                const productDetails = allProducts.find(p => p.id === item.id);
+                return productDetails ? { ...productDetails, ...item } : null;
+            }).filter(Boolean);
 
-                if (diff < 0) {
-                    if (!notifiedOrders.has(orderId)) {
-                        el.parentElement.innerHTML = `<p class="font-bold text-green-700 text-lg">✅ Ready for Pickup!</p>`;
-                        const notificationText = `Your order number ${orderNumber} is now ready for pickup.`;
-                        speak(notificationText);
-                        showToast(notificationText);
-                        notifiedOrders.add(orderId);
+            const itemsListDiv = document.getElementById('cart-items-list'); 
+            const subtotalEl = document.getElementById('cart-subtotal'); 
+            const discountRowEl = document.getElementById('cart-discount-row'); 
+            const discountEl = document.getElementById('cart-discount'); 
+            const grandTotalEl = document.getElementById('cart-grand-total'); 
+            
+            let subtotal = fullCart.reduce((sum, p) => (p.cartItemType === 'rent' ? sum + (p.rentalTotal || 0) + (p.securityDeposit || 0) : sum + ((parseFloat(p.price) || 0) * (p.quantity || 1))), 0); 
+            let discountableSubtotal = fullCart.reduce((sum, p) => (p.cartItemType === 'rent' ? sum + (p.rentalTotal || 0) : sum + ((parseFloat(p.price) || 0) * (p.quantity || 1))), 0); 
+            let discount = 0; 
+            
+            if (appliedPromo) { 
+                if (appliedPromo.discountType === 'percentage') { 
+                    discount = discountableSubtotal * (appliedPromo.discountValue / 100); 
+                } else { 
+                    discount = appliedPromo.discountValue; 
+                } 
+                discount = Math.min(discount, discountableSubtotal); 
+            } 
+            
+            itemsListDiv.innerHTML = fullCart.map((p, index) => { 
+                let itemHTML = ''; 
+                if (p.cartItemType === 'rent') { 
+                    itemHTML = `<div><p class="font-semibold">${p.title} (Rent)</p><p class="text-sm text-gray-600">${p.rentalDays} day(s) @ ₹${p.rentPrice || 0}/day + ₹${(p.securityDeposit || 0).toFixed(2)} deposit</p></div>`; 
+                } else { 
+                    itemHTML = `<div><p class="font-semibold">${p.title} (Sale)</p><p class="text-sm text-gray-600">${p.quantity || 1} x ₹${(p.price || 0).toFixed(2)}</p></div>`; 
+                } 
+                return `<div class="flex justify-between items-center border-b pb-2">${itemHTML}<button onclick="removeFromCart(${index})" class="text-red-500 text-xs font-semibold">Remove</button></div>`; 
+            }).join(''); 
+            
+            subtotalEl.textContent = `₹${subtotal.toFixed(2)}`; 
+            discountRowEl.classList.toggle('hidden', discount <= 0); 
+            discountEl.textContent = `- ₹${discount.toFixed(2)}`; 
+            grandTotalEl.textContent = `₹${(subtotal - discount).toFixed(2)}`; 
+        }
+
+        async function applyPromoCode() { /* ... identical to old client ... */ const input = document.getElementById('promo-code-input'); const code = input.value.trim().toUpperCase(); if (!code) return; const promoCodes = marketplaceSettings.promoCodes || {}; const promo = Object.values(promoCodes).find(p => p.code === code); const discountableSubtotal = cart.reduce((sum, p) => (p.cartItemType === 'rent' ? sum + (p.rentalTotal || 0) : sum + ((parseFloat(p.price) || 0) * (p.quantity || 1))), 0); if (!promo || !promo.isActive) { showToast("Invalid or expired promo code."); appliedPromo = null; } else if (promo.minOrderValue && discountableSubtotal < promo.minOrderValue) { showToast(`This code requires a minimum order of ₹${promo.minOrderValue}.`); appliedPromo = null; } else { appliedPromo = promo; showToast(`Promo code "${promo.code}" applied!`); const promoArea = document.getElementById('promo-area'); const appliedPromoArea = document.getElementById('applied-promo-area'); promoArea.classList.add('hidden'); appliedPromoArea.classList.remove('hidden'); appliedPromoArea.innerHTML = `<div class="flex justify-between items-center bg-green-50 text-green-700 p-2 rounded-md"><p class="text-sm font-semibold">Code Applied: <strong>${promo.code}</strong></p><button id="remove-promo-btn" class="text-xs font-bold">&times; Remove</button></div>`; document.getElementById('remove-promo-btn').addEventListener('click', () => { appliedPromo = null; promoArea.classList.remove('hidden'); appliedPromoArea.classList.add('hidden'); input.value = ''; updateCartTotals(); showToast("Promo code removed."); }); } updateCartTotals(); }
+        
+        function formatDuration(ms) {
+            if (ms < 0) return "0s";
+            let seconds = Math.floor(ms / 1000);
+            let minutes = Math.floor(seconds / 60);
+            let hours = Math.floor(minutes / 60);
+            const days = Math.floor(hours / 24);
+
+            hours %= 24;
+            minutes %= 60;
+            seconds %= 60;
+
+            let parts = [];
+            if (days > 0) parts.push(`${days}d`);
+            if (hours > 0) parts.push(`${hours}h`);
+            if (minutes > 0) parts.push(`${minutes}m`);
+            if (parts.length < 3) parts.push(`${seconds}s`);
+            
+            return parts.join(' ');
+        }
+
+        function startGlobalCountdowns() {
+            if (globalCountdownInterval) clearInterval(globalCountdownInterval);
+
+            const updateAll = () => {
+                const countdownElements = document.querySelectorAll('[data-due-date]');
+                if (document.hidden) return; 
+
+                countdownElements.forEach(el => {
+                    if (!document.body.contains(el)) return;
+                    
+                    const dueDate = new Date(el.dataset.dueDate).getTime();
+                    if(isNaN(dueDate)) return;
+
+                    const now = Date.now();
+                    const diff = dueDate - now;
+
+                    if (diff < 0) {
+                        if (el.hasAttribute('data-summary-countdown')) {
+                            el.textContent = "Ready / Overdue";
+                        } else {
+                            const orderId = el.dataset.orderId;
+                            const orderNumber = el.dataset.orderNumber;
+                            if (el.parentElement) {
+                               el.parentElement.innerHTML = `<p class="font-bold text-green-700 text-lg">✅ Ready for Pickup!</p>`;
+                            }
+                            if (orderId && !notifiedOrders.has(orderId)) {
+                                const notificationText = `Your order number ${orderNumber} is now ready for pickup.`;
+                                speak(notificationText);
+                                showToast(notificationText);
+                                notifiedOrders.add(orderId);
+                            }
+                        }
+                    } else {
+                        el.textContent = formatDuration(diff);
                     }
-                } else {
-                    el.innerHTML = formatDuration(diff);
-                }
-            });
+                });
+            };
+
+            updateAll();
+            globalCountdownInterval = setInterval(updateAll, 1000);
+        }
+
+        function renderMyActiveRentals() { 
+            const rentalSection = document.getElementById('active-rentals-section'); 
+            if (!currentUser) return; 
+            const myRentals = allTransactions.filter(t => t.buyerMobile === currentUser.mobile && t.type === 'rent' && t.status === 'rented_out'); 
+            if (myRentals.length === 0) { rentalSection.innerHTML = ''; return; } 
+            const rentalCards = myRentals.map(t => { 
+                if (t.rentalHandoverTimestamp) { 
+                    const startDate = new Date(t.rentalHandoverTimestamp); 
+                    const dueDate = new Date(startDate); 
+                    dueDate.setDate(startDate.getDate() + t.rentalDays); 
+                    return `<div class="bg-white p-4 rounded-lg shadow-md border-l-4 border-amber-500 mb-2"><p class="font-bold">Rented: ${allProducts.find(p => p.id === t.productId)?.title || 'Item'}</p><p class="text-sm">Due Date: ${dueDate.toLocaleDateString()}</p><div class="text-lg font-bold mt-1" data-due-date="${dueDate.toISOString()}"></div></div>`; 
+                } else { 
+                    return `<div class="bg-white p-4 rounded-lg shadow-md border-l-4 border-blue-500 mb-2"><p class="font-bold">Rented: ${allProducts.find(p => p.id === t.productId)?.title || 'Item'}</p><p class="text-md font-bold text-blue-600 mt-2">Awaiting Pickup from Shop</p></div>`; 
+                } 
+            }).join(''); 
+            rentalSection.innerHTML = `<h2 class="text-xl font-bold mb-3 text-gray-800">My Active Rentals</h2>${rentalCards}`; 
+            startGlobalCountdowns();
         }
         
-        function formatDuration(ms) { let seconds = Math.floor(ms / 1000); let minutes = Math.floor(seconds / 60); let hours = Math.floor(minutes / 60); const days = Math.floor(hours / 24); hours %= 24; minutes %= 60; seconds %= 60; let parts = []; if(days > 0) parts.push(`${days}d`); if(hours > 0) parts.push(`${hours}h`); if(minutes > 0) parts.push(`${minutes}m`); if(parts.length < 3) parts.push(`${seconds}s`); return parts.join(' '); }
+        async function showStatusSummaryModal() {
+            if (!currentUser) return;
+
+            const modal = document.getElementById('status-summary-modal');
+            const rentalsContainer = document.getElementById('summary-rentals-section');
+            const stitchingContainer = document.getElementById('summary-stitching-section');
+
+            // 1. Fetch and render rentals
+            const myRentals = allTransactions.filter(t => t.buyerMobile === currentUser.mobile && t.type === 'rent' && t.status === 'rented_out');
+            if (myRentals.length > 0) {
+                const rentalCards = myRentals.map(t => {
+                    if (t.rentalHandoverTimestamp) {
+                        const startDate = new Date(t.rentalHandoverTimestamp);
+                        const dueDate = new Date(startDate);
+                        dueDate.setDate(startDate.getDate() + t.rentalDays);
+                        return `
+                        <div class="bg-white p-3 rounded-lg shadow-sm border-l-4 border-amber-500 mb-2">
+                            <p class="font-bold text-sm">Rented: ${allProducts.find(p => p.id === t.productId)?.title || 'Item'}</p>
+                            <div class="text-lg font-bold mt-1 text-amber-700" data-summary-countdown="true" data-due-date="${dueDate.toISOString()}"></div>
+                        </div>`;
+                    }
+                    return '';
+                }).join('');
+                rentalsContainer.innerHTML = `<h3 class="text-lg font-bold mb-2 text-gray-800">Active Rentals</h3><div class="space-y-2">${rentalCards}</div>`;
+            } else {
+                rentalsContainer.innerHTML = '';
+            }
+
+            // 2. Fetch and render stitching orders
+            const ordersRef = firebase.database().ref('orders').orderByChild('customerMobile').equalTo(currentUser.mobile);
+            const snapshot = await ordersRef.once('value');
+            const orders = Object.values(snapshot.val() || {});
+            
+            const pendingOrders = orders.filter(o => (o.pipelineStatus !== 'handover' && o.status !== 'Completed') && o.estimatedCompletionTimestamp);
+
+            if (pendingOrders.length > 0) {
+                 const stitchingCards = pendingOrders.sort((a,b) => a.estimatedCompletionTimestamp - b.estimatedCompletionTimestamp).map(o => `
+                    <div class="bg-white p-3 rounded-lg shadow-sm border-l-4 border-indigo-500 mb-2">
+                        <p class="font-bold text-sm">Order #${o.orderNumber}</p>
+                        <div class="text-lg font-bold mt-1 text-indigo-700" data-summary-countdown="true" data-due-date="${o.estimatedCompletionTimestamp}"></div>
+                    </div>
+                `).join('');
+                stitchingContainer.innerHTML = `<h3 class="text-lg font-bold mb-2 text-gray-800">Pending Stitching Orders</h3><div class="space-y-2">${stitchingCards}</div>`;
+            } else {
+                stitchingContainer.innerHTML = '';
+            }
+
+            // 3. Show modal and start countdowns if there is content
+            if (myRentals.length > 0 || pendingOrders.length > 0) {
+                modal.classList.remove('hidden');
+                startGlobalCountdowns();
+            }
+        }
         
         function deleteMyProduct(productId) {
             const productToDelete = allProducts.find(p => p.id === productId);
@@ -1970,16 +2397,11 @@
 
         async function stopPickupScanner() {
             const modal = document.getElementById('qr-scanner-modal');
-            if (html5QrCode) {
+            if (html5QrCode && html5QrCode.isScanning) {
                 try {
-                    if (html5QrCode.isScanning) {
-                        await html5QrCode.stop();
-                    }
-                    await html5QrCode.clear();
+                    await html5QrCode.stop();
                 } catch (err) {
-                    console.error("Failed to stop or clear QR scanner.", err);
-                } finally {
-                    html5QrCode = null;
+                    console.error("Failed to stop QR scanner.", err);
                 }
             }
             modal.classList.add('hidden');
@@ -2044,18 +2466,42 @@
                 if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
                 db = firebase.database();
                 storage = firebase.storage();
+
+                const visitorRef = db.ref(`liveVisitors/${visitorId}`);
+                const connectedRef = db.ref('.info/connected');
+
+                connectedRef.on('value', (snap) => {
+                    if (snap.val() === true) {
+                        const presenceData = currentUser ? 
+                            { status: 'loggedIn', name: currentUser.name, mobile: currentUser.mobile, timestamp: firebase.database.ServerValue.TIMESTAMP } : 
+                            { status: 'anonymous', timestamp: firebase.database.ServerValue.TIMESTAMP };
+                        visitorRef.set(presenceData);
+                        visitorRef.onDisconnect().remove();
+                    }
+                });
+
             } catch(e) { console.error(e); alert("Firebase connection failed."); }
             
             const savedUser = localStorage.getItem('loggedInUser');
             if (savedUser) {
                 login(JSON.parse(savedUser).mobile);
             } else {
-                tabContent.innerHTML = '<p class="text-center text-gray-500 p-8">Please log in to see content.</p>';
+                 db.ref('marketplaceProducts').once('value').then(snap => {
+                    allProducts = Object.values(snap.val() || {});
+                    renderMarketplace();
+                });
+                tabContent.innerHTML = '<p class="text-center text-gray-500 p-8">Please log in to see full content.</p>';
             }
             
             const savedCart = localStorage.getItem('navroseCart');
             if (savedCart) {
-                cart = JSON.parse(savedCart);
+                try {
+                    cart = JSON.parse(savedCart);
+                } catch(e) {
+                    console.error("Error parsing cart from localStorage. Clearing it.", e);
+                    cart = [];
+                    localStorage.removeItem('navroseCart');
+                }
                 updateCartBadge();
             }
 
@@ -2073,4 +2519,5 @@
 
 
 <script src="./script.js"></script><script></script><script type="module" src="/index.tsx"></script>
-<script src="./script.js"></script><script></script><script src="./script.js"></script></body></html>
+<script src="./script.js"></script><script></script>
+<script src="./script.js"></script></body></html>
